@@ -3,6 +3,7 @@ import { MissionScenario } from '../../data/scenarios'
 import CommanderDialog from './CommanderDialog'
 import { getBriefingTeam, BriefingTeam } from '../../data/briefingTeams'
 import { useVoice } from './useVoice'
+import { useGameStore } from '../../store/gameStore'
 
 interface Props {
   scenario: MissionScenario
@@ -40,6 +41,8 @@ export default function MissionBrief({ scenario, onProceed, onBack }: Props) {
   const [activeTab, setActiveTab] = useState<BriefTab>('SITUATION')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
+  const [selectedDiff, setSelectedDiff] = useState<'EASY'|'STANDARD'|'HARD'|'SFC_CHALLENGE'>('STANDARD')
+  const setDifficulty = useGameStore(s => (s as any).setDifficulty)
   const { speak, stop, speaking } = useVoice()
 
   useEffect(() => { stop() }, [activeTab])
@@ -354,12 +357,35 @@ export default function MissionBrief({ scenario, onProceed, onBack }: Props) {
           WebkitTapHighlightColor:'transparent',
         }}>▶ COMMANDER BRIEF</button>
 
-        <button onClick={() => { stop(); onProceed() }} style={{
+        <button onClick={() => { setDifficulty && setDifficulty(selectedDiff); stop(); onProceed() }} style={{
           flex:2, background:'rgba(46,204,113,0.2)', border:'1px solid #2ecc71', color:'#2ecc71',
           padding:'10px 0', borderRadius:4, cursor:'pointer',
           fontFamily:'Barlow Condensed,sans-serif', fontWeight:700, fontSize:16, letterSpacing:2,
           WebkitTapHighlightColor:'transparent',
         }}>DEPLOY →</button>
+      </div>
+
+      {/* ── DIFFICULTY SELECTOR ────────────────────────────────────── */}
+      <div style={{ marginTop:10, padding:'10px 14px', background:'rgba(0,0,0,0.3)', borderRadius:4, border:'1px solid #1a3a20' }}>
+        <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9, color:'#2d5a32', letterSpacing:3, marginBottom:8 }}>OPERATIONAL DIFFICULTY</div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:5 }}>
+          {([
+            { id:'EASY',          label:'EASY',      sub:'Reduced enemy', col:'#2ecc71' },
+            { id:'STANDARD',      label:'STANDARD',  sub:'Balanced',      col:'#f39c12' },
+            { id:'HARD',          label:'HARD',      sub:'Aggressive AI', col:'#e67e22' },
+            { id:'SFC_CHALLENGE', label:'SFC',       sub:'Unforgiving',   col:'#e74c3c' },
+          ] as const).map(d => (
+            <button key={d.id} onClick={() => setSelectedDiff(d.id)} style={{
+              padding:'7px 4px', borderRadius:3, cursor:'pointer', textAlign:'center',
+              background: selectedDiff===d.id ? `${d.col}22` : 'rgba(0,0,0,0.2)',
+              border: `${selectedDiff===d.id ? 2 : 1}px solid ${selectedDiff===d.id ? d.col : d.col+'44'}`,
+              WebkitTapHighlightColor:'transparent', transition:'all .15s',
+            }}>
+              <div style={{ fontFamily:'Barlow Condensed,sans-serif', fontWeight:700, fontSize:12, color:d.col, letterSpacing:1 }}>{d.label}</div>
+              <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:8, color:`${d.col}88`, marginTop:2 }}>{d.sub}</div>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── COMMANDER DIALOG OVERLAY ───────────────────────────────── */}

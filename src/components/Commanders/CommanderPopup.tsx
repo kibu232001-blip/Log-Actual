@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import ReactDOM from 'react-dom'
 import { CommanderEvent, CDR_MAP } from '../../data/Commanders'
 import AudioEngine from '../../engine/AudioEngine'
+import { useGameStore } from '../../store/gameStore'
 
 function Portrait({ style, color }: { style: string; color: string }) {
   const extras: Record<string, string> = {
@@ -47,6 +48,18 @@ export default function CommanderPopup({ event, onAction, onDismiss }: Props) {
     else setAllDone(true)
   }, [lineIdx, event.lines.length])
 
+  const handleDismiss = useCallback(() => {
+    // Fly map to the event's map marker location if present
+    if (event.mapMarker) {
+      useGameStore.getState().setMapFlyTarget({
+        lat: event.mapMarker.lat,
+        lng: event.mapMarker.lng,
+        zoom: 7,
+      })
+    }
+    handleDismiss()
+  }, [event, onDismiss])
+
   useEffect(() => { const t=setTimeout(()=>setAllDone(true),10000); return()=>clearTimeout(t) }, [])
 
   const popup = (
@@ -61,7 +74,7 @@ export default function CommanderPopup({ event, onAction, onDismiss }: Props) {
       {/* Mobile backdrop */}
       {isMobile && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:8998 }}
-          onClick={allDone ? ()=>onDismiss(event) : undefined}/>
+          onClick={allDone ? ()=>handleDismiss() : undefined}/>
       )}
 
       {/* Popup card */}
@@ -96,7 +109,7 @@ export default function CommanderPopup({ event, onAction, onDismiss }: Props) {
               <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:10, color:bc, letterSpacing:1 }}>{event.priority}</span>
               {/* Quick dismiss on mobile */}
               {isMobile && (
-                <button onClick={()=>onDismiss(event)} style={{ background:'transparent', border:`1px solid ${bc}40`, color:`${bc}80`, padding:'2px 6px', fontSize:11, borderRadius:2, cursor:'pointer', fontFamily:'Share Tech Mono,monospace' }}>✕</button>
+                <button onClick={()=>handleDismiss()} style={{ background:'transparent', border:`1px solid ${bc}40`, color:`${bc}80`, padding:'2px 6px', fontSize:11, borderRadius:2, cursor:'pointer', fontFamily:'Share Tech Mono,monospace' }}>✕</button>
               )}
             </div>
           </div>
@@ -132,8 +145,8 @@ export default function CommanderPopup({ event, onAction, onDismiss }: Props) {
                   {event.actionLabel}
                 </button>
               )}
-              <button onClick={()=>onDismiss(event)} style={{ padding:'9px 14px', background:'transparent', border:'1px solid #1a3a20', color:'#2a5a3a', fontFamily:'Barlow Condensed,sans-serif', fontSize:isMobile?13:16, borderRadius:3, cursor:'pointer', WebkitTapHighlightColor:'transparent' }}>
-                {event.dismissLabel || 'ACKNOWLEDGED'}
+              <button onClick={()=>handleDismiss()} style={{ padding:'9px 14px', background:'transparent', border:'1px solid #1a3a20', color:'#2a5a3a', fontFamily:'Barlow Condensed,sans-serif', fontSize:isMobile?13:16, borderRadius:3, cursor:'pointer', WebkitTapHighlightColor:'transparent' }}>
+                {event.mapMarker ? 'OPEN THEATER ASSESSMENT' : (event.dismissLabel || 'ACKNOWLEDGED')}
               </button>
             </div>
           )}

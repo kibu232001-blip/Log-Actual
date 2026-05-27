@@ -107,6 +107,8 @@ function buildInitialState(scenarioId='CAMPAIGN_1'): GameState & { realConvoys:R
     metrics:{ avgReadiness:avg, stonewallRate:sw, avgRequestCycleTime:rct, sigmaLevel:sigma, doctrineAccuracy:0, forceMultiplierTotal:0 },
     metricsHistory:[], weather:'CLEAR', isGameOver:false, isPaused:false, showAAR:false,
     difficulty: 'STANDARD' as 'EASY'|'STANDARD'|'HARD'|'SFC_CHALLENGE',
+    airSorties: 4,
+    convoyStats: { dispatched:0, delivered:0, interdicted:0 },
     realConvoys:[], mapFlyTarget:null as {lat:number;lng:number;zoom:number}|null, failureReason:null as string|null, pendingDecisionEvent:null as any, daysSinceLastAction:0, totalDecisionsMade:0, pendingCommanderEvent:null, firedCommanderEventIds:[], enemyAOs:[], enemyIntel:createInitialIntel(), lastEnemyAttacks:[], activeScenarioId:scenarioId, appliedBattlefieldEvents:day1Events as any[], locInterdictions:({} as Record<string,number>),
   }
 }
@@ -381,9 +383,23 @@ export const useGameStore = create<Store>((set,get)=>({
 
       // ── PROCESS CONVOY ARRIVALS — real supply delivery ──
       const arrived:string[]=[]
+      let convoysDelivered = 0
       newConvoys=newConvoys.map(c=>{
         if(c.status!=='EN_ROUTE') return c
         const prog=Math.min(1,(nextDay-c.departedDay)/c.travelDays)
+        const daysRemaining = c.travelDays - (nextDay - c.departedDay)
+
+        // 1-day-out intel warning
+        if (daysRemaining === 1) {
+          const warnEvent = {
+            id:`CONVOY_ETA_${c.id}`, type:'LOGREP', priority:'ROUTINE',
+            title:`CONVOY ETA TOMORROW — ${c.toUnitId.replace(/_/g,' ')}`,
+            report:`INTEL UPDATE: ${c.assetType} convoy inbound. ETA D+1. Threat assessment: ELEVATED. Recommend air cover on final approach.`,
+            effects:[], affectedAssets:[c.toUnitId],
+            acknowledged:false, mitigated:false,
+          }
+          newFeedEvents.push(warnEvent)
+        }
         if(prog>=1){
           const u=updatedUnits[c.toUnitId]
           if(u){
@@ -403,6 +419,7 @@ export const useGameStore = create<Store>((set,get)=>({
             updatedUnits[c.toUnitId]={...u,supplyLevels:newLvls,readiness:Math.round(newR),status:getStatus(Math.round(newR))}
           }
           arrived.push(c.id)
+          convoysDelivered++
           return {...c,status:'DELIVERED' as const,progress:1}
         }
         return {...c,progress:prog}
@@ -509,8 +526,15 @@ export const useGameStore = create<Store>((set,get)=>({
       const extendedStonewall    = Object.values(updatedUnits).some((u:any)=>u.stonewallStreak >= 3)  // 3 days stonewall = combat ineffective
       const singleUnitCollapse   = Object.values(updatedUnits).some((u:any)=>(u.readiness??100) <= 1 && (u.stonewallStreak??0) >= 2) // any unit near-zero for 2+ days
 
-      const campaignFailed = catastrophicCollapse || sigmaCollapse || massiveDark || extendedStonewall || singleUnitCollapse
-      const failureReason  = catastrophicCollapse ? 'THEATER COLLAPSE — 40%+ UNITS IN STONEWALL'
+      // Difficulty-based hard loss: SFC_CHALLENGE = 1 FOB lost = game over, HARD = 2, STANDARD = 3
+      const diff2 = (s as any).difficulty || 'STANDARD'
+      const maxFOBsLost = diff2==='SFC_CHALLENGE' ? 1 : diff2==='HARD' ? 2 : 3
+      const fobsCurrentlyLost = Object.values(updatedUnits).filter((u:any) => u.status==='DARK' || (u.stonewallStreak||0) >= 4).length
+      const fobLossTriggered = fobsCurrentlyLost >= maxFOBsLost
+
+      const campaignFailed = catastrophicCollapse || sigmaCollapse || massiveDark || extendedStonewall || singleUnitCollapse || fobLossTriggered
+      const failureReason  = fobLossTriggered         ? `${diff2} LOSS — ${fobsCurrentlyLost} FOB${fobsCurrentlyLost>1?'S':''} LOST (LIMIT: ${maxFOBsLost})`
+                           : catastrophicCollapse ? 'THEATER COLLAPSE — 40%+ UNITS IN STONEWALL'
                            : sigmaCollapse        ? 'SIGMA COLLAPSE — DISTRIBUTION SYSTEM FAILED'
                            : massiveDark          ? 'FORCE ATTRITION — 3+ UNITS OFFLINE'
                            : singleUnitCollapse   ? (() => {
@@ -711,10 +735,17 @@ export const useGameStore = create<Store>((set,get)=>({
       lastEnemyAttacks:enemyAttacks,
       weather:currentWeather as any,
       daysSinceLastAction: daysSinceAction,
+      // Regen 1 air sortie per day (max 4, difficulty scaled)
+      airSorties: Math.min(4, ((s as any).airSorties ?? 4) + 1),
+      // Track cumulative convoy stats for AAR
+      convoyStats: {
+        dispatched: ((s as any).convoyStats?.dispatched ?? 0),
+        delivered:  ((s as any).convoyStats?.delivered  ?? 0) + convoysDelivered,
+        interdicted:((s as any).convoyStats?.interdicted ?? 0),
+      },
       appliedBattlefieldEvents:newFeedEvents,
-      // Auto-queue highest priority event as forced commander decision
       pendingDecisionEvent: (() => {
-        if (s.pendingDecisionEvent) return s.pendingDecisionEvent  // don't overwrite existing
+        if (s.pendingDecisionEvent) return s.pendingDecisionEvent
         const flashEvent = newFeedEvents.find((e:any) => e.priority === 'FLASH' && e.responseOptions?.length > 0)
         const immediateEvent = newFeedEvents.find((e:any) => e.priority === 'IMMEDIATE' && e.responseOptions?.length > 0)
         return flashEvent || immediateEvent || s.pendingDecisionEvent || null
@@ -896,7 +927,7 @@ export const useGameStore = create<Store>((set,get)=>({
     set(st=>({
       realConvoys:[...((st as any).realConvoys||[]),newConvoy],
       enemyIntel: intel,
-      // Queue reactive enemy response if no pending event
+      convoyStats: { ...(st as any).convoyStats, dispatched:(((st as any).convoyStats?.dispatched)??0)+1 },
       pendingCommanderEvent: (st as any).pendingCommanderEvent ? (st as any).pendingCommanderEvent : 
         Math.random() < 0.45 ? { ...reactiveEvent, commanderId:'COL_PETROV' } : (st as any).pendingCommanderEvent,
     }))
@@ -999,6 +1030,20 @@ export const useGameStore = create<Store>((set,get)=>({
     const unit = (s.units as any)[unitId]
     if (!unit) return {}
 
+    // Air sortie costs a sortie — block if none available
+    if (actionType === 'AIR_EMERGENCY') {
+      const currentSorties = (s as any).airSorties ?? 0
+      if (currentSorties <= 0) {
+        const noSortieEvent = {
+          id:`NO_SORTIE_${Date.now()}`, type:'LOGREP', priority:'PRIORITY',
+          title:'AIR SORTIE UNAVAILABLE — NO ASSETS REMAINING',
+          report:'All air sorties expended. Assets rearm in 24h. Use LATERAL TRANSFER or wait for daily rearm.',
+          effects:[], affectedAssets:[unitId], acknowledged:true, mitigated:true,
+        }
+        return { appliedBattlefieldEvents:[noSortieEvent,...((s as any).appliedBattlefieldEvents||[])].slice(0,60) } as any
+      }
+    }
+
     let updatedUnits = { ...s.units }
     let feedMsg = ''
 
@@ -1064,6 +1109,7 @@ export const useGameStore = create<Store>((set,get)=>({
     return {
       units: updatedUnits,
       daysSinceLastAction: 0,
+      airSorties: actionType === 'AIR_EMERGENCY' ? Math.max(0, ((s as any).airSorties ?? 0) - 1) : (s as any).airSorties,
       metrics: { ...(s as any).metrics, stonewallRate:Math.round(sw), avgRequestCycleTime:Math.round(rct) },
       appliedBattlefieldEvents:[feedEvent,...((s as any).appliedBattlefieldEvents||[])].slice(0,60),
     }

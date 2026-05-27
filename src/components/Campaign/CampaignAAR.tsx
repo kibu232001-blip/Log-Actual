@@ -10,6 +10,9 @@ export default function CampaignAAR() {
   const campaignGrade    = useGameStore(s => (s as any).campaignGrade || 'F')
   const victorySigma     = useGameStore(s => (s as any).victorySigma)
   const victoryRCT       = useGameStore(s => (s as any).victoryRCT)
+  const convoyStats      = useGameStore(s => (s as any).convoyStats || { dispatched:0, delivered:0, interdicted:0 })
+  const airSorties       = useGameStore(s => (s as any).airSorties ?? 4)
+  const difficulty       = useGameStore(s => (s as any).difficulty || 'STANDARD')
   const [visible, setVisible] = useState(false)
 
   const isFailed = !!failureReason || !campaignVictory
@@ -116,6 +119,14 @@ export default function CampaignAAR() {
           {statRow('DAYS SURVIVED', `${currentDay} / ${totalDays}`,
             currentDay >= totalDays ? '#00ff88' : '#ffaa00')}
           {statRow('DECISIONS MADE', `${completedDecisions?.length || 0}`, '#00aaff')}
+          {/* Convoy survival stats */}
+          {convoyStats.dispatched > 0 && statRow(
+            'CONVOY SURVIVAL',
+            `${convoyStats.delivered} / ${convoyStats.dispatched}`,
+            convoyStats.delivered / Math.max(1, convoyStats.dispatched) >= 0.8 ? '#00ff88'
+            : convoyStats.delivered / Math.max(1, convoyStats.dispatched) >= 0.5 ? '#ffcc00' : '#ff4444'
+          )}
+          {statRow('DIFFICULTY', difficulty, difficulty==='SFC_CHALLENGE'?'#ff4444':difficulty==='HARD'?'#ff8800':difficulty==='STANDARD'?'#ffcc00':'#00ff88')}
         </div>
 
         {/* Doctrine summary */}
