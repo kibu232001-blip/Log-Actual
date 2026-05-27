@@ -37,8 +37,6 @@ function MissionPopup({ selected, onProceed, onBrief, onDismiss }: any) {
   const c = DIFF_COLORS[selected.difficulty] || '#2ecc71'
   return (
     <div
-      onTouchStart={(e)=>e.stopPropagation()}
-      onTouchEnd={(e)=>e.stopPropagation()}
       onClick={(e)=>e.stopPropagation()}
       style={{
         position:'fixed', bottom:24, left:12, right:12,
@@ -53,14 +51,10 @@ function MissionPopup({ selected, onProceed, onBrief, onDismiss }: any) {
       <style>{`@keyframes popup-rise{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
 
       {/* Dismiss */}
-      <button
-        onTouchEnd={(e)=>{ e.stopPropagation(); e.preventDefault(); onDismiss() }}
-        onClick={(e)=>{ e.stopPropagation(); onDismiss() }}
-        style={{
+      <button onClick={onDismiss} style={{
         position:'absolute',top:10,right:12,
         background:'transparent',border:'none',color:'#2d5a32',
-        fontSize:20,cursor:'pointer',lineHeight:1,padding:4,
-        WebkitTapHighlightColor:'transparent',
+        fontSize:20,cursor:'pointer',lineHeight:1,padding:0,
       }}>✕</button>
 
       {/* Header */}
@@ -95,23 +89,17 @@ function MissionPopup({ selected, onProceed, onBrief, onDismiss }: any) {
 
       {/* Action buttons */}
       <div style={{display:'flex',gap:8}}>
-        <button
-          onTouchEnd={(e)=>{ e.stopPropagation(); e.preventDefault(); onBrief() }}
-          onClick={(e)=>{ e.stopPropagation(); onBrief() }}
-          style={{
-          flex:1,padding:'12px 0',
+        <button onClick={onBrief} style={{
+          flex:1,padding:'11px 0',
           background:'transparent',border:`1px solid ${c}60`,color:'#7aab7e',
           fontFamily:'Barlow Condensed,sans-serif',fontWeight:600,fontSize:14,letterSpacing:2,
-          borderRadius:5,cursor:'pointer', WebkitTapHighlightColor:'transparent',
+          borderRadius:5,cursor:'pointer',
         }}>▶ BRIEFING</button>
-        <button
-          onTouchEnd={(e)=>{ e.stopPropagation(); e.preventDefault(); onProceed() }}
-          onClick={(e)=>{ e.stopPropagation(); onProceed() }}
-          style={{
-          flex:2,padding:'12px 0',
+        <button onClick={onProceed} style={{
+          flex:2,padding:'11px 0',
           background:`${c}22`,border:`1px solid ${c}`,color:c,
           fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:16,letterSpacing:2,
-          borderRadius:5,cursor:'pointer', WebkitTapHighlightColor:'transparent',
+          borderRadius:5,cursor:'pointer',
         }}>DEPLOY →</button>
       </div>
     </div>
@@ -119,100 +107,75 @@ function MissionPopup({ selected, onProceed, onBrief, onDismiss }: any) {
 }
 
 // Nav arrows pointing to off-screen missions
-// Uses Leaflet's latLngToContainerPoint for accurate pixel positions
-function NavArrows({ scenarios, mapInst, onFly }: any) {
+function NavArrows({ scenarios, mapRef, onFly }: any) {
   const [arrows, setArrows] = React.useState<any[]>([])
   const DIFF_COLORS: Record<string,string> = { STANDARD:'#2ecc71', ELEVATED:'#f39c12', SEVERE:'#e74c3c' }
 
   React.useEffect(() => {
     const update = () => {
-      const map = mapInst.current
-      if (!map) return
-      const container = map.getContainer()
-      const W = container.clientWidth
-      const H = container.clientHeight
-      const cx = W / 2, cy = H / 2
-      const margin = 52
+      if (!mapRef.current) return
+      const rect = mapRef.current.getBoundingClientRect()
+      const cx = rect.width / 2
+      const cy = rect.height / 2
       const result: any[] = []
 
       scenarios.forEach((s: any) => {
-        // Convert lat/lng to pixel position using Leaflet API
-        const pt = map.latLngToContainerPoint(L.latLng(s.mapCenter[0], s.mapCenter[1]))
-        const mx = pt.x, my = pt.y
-        const onscreen = mx > margin && mx < W - margin && my > margin && my < H - margin
+        // Get pixel position of marker via lat/lng
+        const el = mapRef.current?.querySelector(`[data-scenario="${s.id}"]`) as HTMLElement
+        if (!el) return
+        const r = el.getBoundingClientRect()
+        const mx = r.left + r.width/2 - rect.left
+        const my = r.top + r.height/2 - rect.top
+        const onscreen = mx > 20 && mx < rect.width-20 && my > 20 && my < rect.height-20
         if (onscreen) return
 
-        const dx = mx - cx, dy = my - cy
+        // Calculate angle from center to marker
+        const dx = mx - cx
+        const dy = my - cy
         const angle = Math.atan2(dy, dx) * 180 / Math.PI
-        const dist = Math.sqrt(dx*dx + dy*dy)
-        // Place arrow at screen edge
+
+        // Clamp to screen edge
+        const margin = 40
+        const dist = Math.sqrt(dx*dx+dy*dy)
         const ex = cx + (dx/dist) * (cx - margin)
         const ey = cy + (dy/dist) * (cy - margin)
 
-        result.push({
-          s, angle,
-          x: Math.max(margin, Math.min(W - margin, ex)),
-          y: Math.max(margin, Math.min(H - margin, ey))
-        })
+        result.push({ s, angle, x: Math.max(margin, Math.min(rect.width-margin, ex)), y: Math.max(margin, Math.min(rect.height-margin, ey)) })
       })
       setArrows(result)
     }
-
-    const iv = setInterval(update, 400)
+    const iv = setInterval(update, 500)
     update()
-    // Also update on map move
-    const map = mapInst.current
-    if (map) { map.on('move zoom', update) }
-    return () => {
-      clearInterval(iv)
-      if (map) map.off('move zoom', update)
-    }
-  }, [mapInst.current])
+    return () => clearInterval(iv)
+  }, [scenarios])
 
   return (
     <>
       <style>{`
-        @keyframes arrow-pulse{0%,100%{opacity:1;transform:translate(-50%,-50%) scale(1)}50%{opacity:0.55;transform:translate(-50%,-50%) scale(0.82)}}
+        @keyframes arrow-pulse{0%,100%{opacity:1;transform:translate(-50%,-50%) scale(1)}50%{opacity:0.6;transform:translate(-50%,-50%) scale(0.85)}}
       `}</style>
-      {arrows.map(({s, angle, x, y}) => {
-        const c = DIFF_COLORS[s.difficulty] || '#2ecc71'
-        const abbr = s.operationName.replace('OPERATION ','').slice(0,10)
-        // Arrow points toward the off-screen mission
-        const arrowAngle = angle + 90 // rotate triangle to point in direction
+      {arrows.map(({s,angle,x,y})=>{
+        const c = DIFF_COLORS[s.difficulty]||'#2ecc71'
+        const abbr = s.operationName.replace('OPERATION ','').slice(0,8)
         return (
-          <div key={s.id}
-            onClick={(e) => { e.stopPropagation(); onFly(s) }}
-            style={{
-              position:'absolute', left:x, top:y,
-              transform:'translate(-50%,-50%)',
-              zIndex:350, cursor:'pointer', pointerEvents:'all',
-              animation:'arrow-pulse 1.5s ease-in-out infinite',
-              display:'flex', flexDirection:'column', alignItems:'center', gap:3,
-            }}>
-            {/* Directional arrow */}
+          <div key={s.id} onClick={()=>onFly(s)} style={{
+            position:'absolute', left:x, top:y,
+            transform:'translate(-50%,-50%)',
+            zIndex:300, cursor:'pointer', pointerEvents:'all',
+            animation:'arrow-pulse 1.6s ease-in-out infinite',
+            display:'flex', flexDirection:'column', alignItems:'center', gap:2,
+          }}>
             <div style={{
-              width:42, height:42,
-              borderRadius:'50%',
-              background:`${c}18`,
-              border:`2px solid ${c}`,
-              display:'flex', alignItems:'center', justifyContent:'center',
-              boxShadow:`0 0 12px ${c}66`,
-            }}>
-              <div style={{
-                width:0, height:0,
-                borderLeft:'7px solid transparent',
-                borderRight:'7px solid transparent',
-                borderBottom:`14px solid ${c}`,
-                transform:`rotate(${angle + 90}deg)`,
-                filter:`drop-shadow(0 0 4px ${c})`,
-              }}/>
-            </div>
-            {/* Label */}
+              width:36,height:36,borderRadius:'50%',
+              background:`${c}22`,border:`2px solid ${c}`,
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontSize:16,
+              transform:`rotate(${angle}deg)`,
+            }}>→</div>
             <div style={{
-              fontFamily:'Share Tech Mono,monospace', fontSize:8, color:c,
-              letterSpacing:1, whiteSpace:'nowrap',
-              background:'rgba(4,12,6,.9)', padding:'2px 5px',
-              borderRadius:2, border:`1px solid ${c}44`,
+              fontFamily:'Share Tech Mono,monospace',fontSize:8,color:c,
+              letterSpacing:1,whiteSpace:'nowrap',
+              background:'rgba(4,12,6,.85)',padding:'2px 4px',borderRadius:2,
             }}>{abbr}</div>
           </div>
         )
@@ -294,7 +257,7 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
       L.marker([s.mapCenter[0], s.mapCenter[1]], { icon })
         .addTo(map)
         .bindTooltip(s.operationName, { direction:'top', offset:[0, isMob ? -50 : -10], className:'map-tt' })
-        .on('click', (e) => { L.DomEvent.stopPropagation(e); justSelected.current = true; setSel(s); setThtr(s.theater) })
+        .on('click', (e) => { L.DomEvent.stopPropagation(e); setSel(s); setThtr(s.theater) })
     })
     return () => { map.remove(); mapInst.current = null }
   }, [])
@@ -310,15 +273,17 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
   }
 
   const isMobile = window.innerWidth < 768
-  const justSelected = React.useRef(false)
+
+  const [showBrief, setShowBrief] = React.useState(false)
+
+  if (showBrief && sel) {
+    return null // App will render MissionBrief — handled by onSelect
+  }
 
   if (isMobile) {
     return (
       <div style={{ position:'fixed', inset:0, background:'#050e06' }}
-        onClick={() => {
-          if (justSelected.current) { justSelected.current = false; return }
-          setSel(null)
-        }}>
+        onClick={() => setSel(null)}>
         <style>{MAP_CSS}</style>
         {/* Map fills full screen */}
         <div ref={mapRef} style={{ position:'absolute', inset:0 }} />
@@ -350,7 +315,7 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
         )}
 
         {/* Nav arrows for off-screen missions */}
-        <NavArrows scenarios={ALL_SCENARIOS} mapInst={mapInst} onFly={(s: any) => { justSelected.current = true; flyToS(s) }} />
+        <NavArrows scenarios={ALL_SCENARIOS} mapRef={mapRef} onFly={flyToS} />
 
         {/* Mission popup card */}
         <MissionPopup
