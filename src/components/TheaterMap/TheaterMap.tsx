@@ -7,6 +7,7 @@ import BattlefieldFeed from './BattlefieldFeed'
 import WeatherOverlay from './WeatherOverlay'
 import AttackAnimations from './AttackAnimations'
 import { getTheaterNetwork, TheaterNode, TheaterLOC } from '../../data/scenarioNodes'
+import NewsFeedSystem from './NewsFeedSystem'
 
 const SC: Record<string,string> = {
   GREEN:'#00ff88', AMBER:'#ffaa00', RED:'#ff4444', STONEWALL:'#ff4400', ACTIVE:'#00cc66', DARK:'#333344'
@@ -475,6 +476,7 @@ export default function TheaterMap({ onBack }: Props) {
         <AttackAnimations mapRef={mapRef}/>
       </div>
       <BattlefieldFeed/>
+      <NewsFeedSystem />
     </div>
   )
 }

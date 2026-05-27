@@ -61,16 +61,43 @@ export default function App() {
     return <QuoteScreen onComplete={handleQuoteComplete} duration={2500}/>
   }
 
+  const isMobile = window.innerWidth < 768
+
+  if (isMobile) {
+    return (
+      <div style={{ position:'fixed', inset:0, display:'flex', flexDirection:'column',
+        background:'#030a0e', color:'#c8e6c9', overflow:'hidden' }}>
+        <TopBar />
+        {/* Map: fixed 46% of remaining viewport height */}
+        <div style={{ flex:'0 0 46vh', position:'relative', overflow:'hidden', minHeight:0 }}>
+          <TheaterMap onBack={handleBackToSelect} />
+        </div>
+        {/* Bottom panel: fills the rest */}
+        <MobileHUD />
+        {showDecisionModal && <DoctrineDecisionModal />}
+        {showResultCard    && <ResultCard />}
+        {showAAR           && <CampaignAAR />}
+        {pendingDecisionEvent && !showDecisionModal && !showAAR && (
+          <CommanderDecisionModal
+            event={pendingDecisionEvent}
+            onResolved={() => clearDecisionEvent && clearDecisionEvent()}
+          />
+        )}
+        {pendingCommanderEvent && !showDecisionModal && !pendingDecisionEvent && (
+          <CommanderPopup
+            event={pendingCommanderEvent}
+            onAction={actionCommanderEvent}
+            onDismiss={() => dismissCommanderEvent()}
+          />
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div style={{ display:'grid', gridTemplateRows:'48px 1fr', height:'100vh', overflow:'hidden', background:'#030a0e', color:'#c8e6c9' }}>
+    <div style={{ display:'grid', gridTemplateRows:'52px 1fr', height:'100vh', overflow:'hidden', background:'#030a0e', color:'#c8e6c9' }}>
       <TopBar />
-      <div style={{
-          display:'grid',
-          gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 280px',
-          gridTemplateRows: window.innerWidth < 768 ? '1fr auto' : '1fr',
-          overflow:'hidden',
-          height:'100%',
-        }}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 280px', overflow:'hidden', height:'100%' }}>
         <TheaterMap onBack={handleBackToSelect} />
         <Sidebar />
       </div>

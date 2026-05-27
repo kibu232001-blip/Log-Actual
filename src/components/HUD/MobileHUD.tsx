@@ -1,176 +1,216 @@
 import React, { useState } from 'react'
 import { useGameStore } from '../../store/gameStore'
 
-type Panel = 'UNITS' | 'SUPPLY' | 'FEED' | null
+type Tab = 'UNITS' | 'SUPPLY' | 'FEED'
 
 export default function MobileHUD() {
-  const [open, setOpen] = useState<Panel>(null)
-  const units   = useGameStore(s => s.units)
-  const metrics = useGameStore(s => s.metrics)
+  const [tab, setTab] = useState<Tab>('UNITS')
+  const units      = useGameStore(s => s.units)
+  const metrics    = useGameStore(s => s.metrics)
   const feedEvents = useGameStore(s => (s as any).appliedBattlefieldEvents || [])
+  const pendingDecision = useGameStore(s => s.pendingDecision)
+  const advanceTurn = useGameStore(s => s.advanceTurn)
 
-  const toggle = (p: Panel) => setOpen(o => o === p ? null : p)
-
-  const unitList = Object.values(units) as any[]
+  const unitList   = Object.values(units) as any[]
   const flashCount = feedEvents.filter((e:any) => e.priority === 'FLASH' && !e.acknowledged).length
+  const getColor   = (r:number) => r >= 70 ? '#2ecc71' : r >= 40 ? '#f39c12' : '#e74c3c'
 
-  const getColor = (r: number) => r >= 70 ? '#2ecc71' : r >= 40 ? '#f39c12' : '#e74c3c'
-
-  const BTN = {
-    display:'flex' as const, flexDirection:'column' as const, alignItems:'center' as const,
-    gap:3, padding:'8px 10px', borderRadius:6, cursor:'pointer' as const,
-    fontFamily:'Share Tech Mono,monospace', fontSize:9, letterSpacing:1,
-    border:'1px solid #1a3a20', background:'rgba(5,15,8,.92)',
-    minWidth:52,
+  const TAB_BTN = (id: Tab, icon: string, label: string, badge?: number) => {
+    const active = tab === id
+    const alertColor = id === 'FEED' && flashCount > 0 ? '#ff4444' : '#2ecc71'
+    return (
+      <button
+        key={id}
+        onClick={() => setTab(id)}
+        style={{
+          flex:1, display:'flex', flexDirection:'column', alignItems:'center',
+          gap:2, padding:'8px 0',
+          background: active ? `${alertColor}14` : 'transparent',
+          borderBottom: active ? `2px solid ${alertColor}` : '2px solid transparent',
+          border:'none', cursor:'pointer',
+          fontFamily:'Share Tech Mono,monospace', fontSize:9, letterSpacing:1,
+          color: active ? alertColor : '#2d5a32',
+          position:'relative',
+          WebkitTapHighlightColor:'transparent',
+          transition:'all 0.15s',
+        }}>
+        {badge != null && badge > 0 && (
+          <div style={{
+            position:'absolute', top:4, right:'calc(50% - 18px)',
+            background:'#ff4444', color:'#fff', borderRadius:'50%',
+            width:16, height:16, display:'flex', alignItems:'center', justifyContent:'center',
+            fontSize:9, fontWeight:700, lineHeight:1,
+          }}>{badge}</div>
+        )}
+        <span style={{ fontSize:16 }}>{icon}</span>
+        <span>{label}</span>
+      </button>
+    )
   }
 
   return (
-    <>
-      {/* ── FLOATING BUTTON ROW ── */}
+    <div style={{
+      display:'flex', flexDirection:'column',
+      background:'#081408', borderTop:'1px solid #1a3a20',
+      overflow:'hidden', flex:1, minHeight:0,
+    }}>
+
+      {/* ── DECISION ALERT ── */}
+      {pendingDecision && (
+        <div style={{
+          padding:'6px 12px', background:'rgba(231,76,60,0.12)',
+          borderBottom:'1px solid rgba(231,76,60,0.3)',
+          display:'flex', alignItems:'center', gap:8, flexShrink:0,
+        }}>
+          <span style={{ color:'#e74c3c', fontSize:14 }}>⚡</span>
+          <span style={{ fontFamily:'Barlow Condensed,sans-serif', fontSize:13,
+            color:'#e74c3c', letterSpacing:1, flex:1 }}>DOCTRINE DECISION PENDING</span>
+        </div>
+      )}
+
+      {/* ── TAB BAR ── */}
       <div style={{
-        position:'absolute', bottom:16, left:'50%', transform:'translateX(-50%)',
-        display:'flex', gap:8, zIndex:200,
+        display:'flex', borderBottom:'1px solid #1a3a20', flexShrink:0,
+        background:'#050e06',
       }}>
-        {/* Units */}
-        <button onClick={() => toggle('UNITS')} style={{
-          ...BTN,
-          background: open==='UNITS' ? 'rgba(0,255,136,.15)' : 'rgba(5,15,8,.92)',
-          borderColor: open==='UNITS' ? '#00ff88' : '#1a3a20',
-          color: open==='UNITS' ? '#00ff88' : '#4a7a54',
-        }}>
-          <span style={{fontSize:18}}>⬡</span>
-          <span>UNITS</span>
-        </button>
-
-        {/* Supply */}
-        <button onClick={() => toggle('SUPPLY')} style={{
-          ...BTN,
-          background: open==='SUPPLY' ? 'rgba(0,255,136,.15)' : 'rgba(5,15,8,.92)',
-          borderColor: open==='SUPPLY' ? '#00ff88' : '#1a3a20',
-          color: open==='SUPPLY' ? '#00ff88' : '#4a7a54',
-        }}>
-          <span style={{fontSize:18}}>📦</span>
-          <span>SUPPLY</span>
-        </button>
-
-        {/* Feed */}
-        <button onClick={() => toggle('FEED')} style={{
-          ...BTN,
-          background: open==='FEED' ? 'rgba(255,60,60,.15)' : 'rgba(5,15,8,.92)',
-          borderColor: open==='FEED' ? (flashCount > 0 ? '#ff4444' : '#00ff88') : '#1a3a20',
-          color: open==='FEED' ? '#ff9944' : '#4a7a54',
-          position:'relative',
-        }}>
-          {flashCount > 0 && (
-            <div style={{
-              position:'absolute', top:-6, right:-6,
-              background:'#ff4444', color:'white', borderRadius:'50%',
-              width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:10, fontWeight:700,
-            }}>{flashCount}</div>
-          )}
-          <span style={{fontSize:18}}>📡</span>
-          <span>FEED</span>
-        </button>
+        {TAB_BTN('UNITS', '⬡', 'UNITS')}
+        {TAB_BTN('SUPPLY', '◈', 'SUPPLY')}
+        {TAB_BTN('FEED', '◉', 'FEED', flashCount)}
       </div>
 
-      {/* ── PANELS ── */}
-      {open && (
-        <div style={{
-          position:'absolute', bottom:80, left:0, right:0, zIndex:190,
-          background:'rgba(5,12,7,.96)', borderTop:'2px solid #1a3a20',
-          maxHeight:'55vh', overflowY:'auto',
-          padding:'12px 14px 16px',
-          animation:'panel-up .2s ease',
-        }}>
-          <style>{`@keyframes panel-up { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }`}</style>
+      {/* ── CONTENT ── */}
+      <div style={{ flex:1, overflowY:'auto', padding:'10px 12px' }}>
 
-          {/* Close */}
-          <button onClick={() => setOpen(null)} style={{
-            position:'absolute', top:10, right:12,
-            background:'transparent', border:'none', color:'#1a5a3a',
-            fontSize:18, cursor:'pointer', lineHeight:1,
-          }}>✕</button>
-
-          {/* UNITS PANEL */}
-          {open === 'UNITS' && (
-            <div>
-              <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,letterSpacing:3,color:'#1a5a3a',marginBottom:10}}>UNIT READINESS</div>
-              {unitList.map((u:any) => (
-                <div key={u.id} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
-                  <div style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:13,color:'#c8e6c9',width:90,flexShrink:0}}>{u.name}</div>
-                  <div style={{flex:1,height:8,background:'#0d1f10',borderRadius:4,overflow:'hidden'}}>
-                    <div style={{height:'100%',width:`${u.readiness}%`,background:getColor(u.readiness),borderRadius:4,transition:'width .3s'}}/>
+        {tab === 'UNITS' && (
+          <div>
+            {unitList.map((u:any) => {
+              const c = getColor(u.readiness)
+              const isStonewall = u.status === 'STONEWALL'
+              const isDark = u.status === 'DARK'
+              return (
+                <div key={u.id} style={{
+                  display:'flex', alignItems:'center', gap:8, marginBottom:10,
+                  padding:'6px 8px', borderRadius:4,
+                  background: isStonewall ? 'rgba(255,68,0,0.08)' : isDark ? 'rgba(40,40,60,0.5)' : 'transparent',
+                  border: isStonewall ? '1px solid rgba(255,68,0,0.3)' : isDark ? '1px solid rgba(80,80,120,0.3)' : '1px solid transparent',
+                }}>
+                  <div style={{
+                    fontFamily:'Barlow Condensed,sans-serif', fontWeight:700,
+                    fontSize:14, color: isDark ? '#555' : '#c8e6c9', width:80, flexShrink:0,
+                  }}>{u.shortName}</div>
+                  <div style={{ flex:1, height:7, background:'#0d1f10', borderRadius:3, overflow:'hidden' }}>
+                    <div style={{ height:'100%', width:`${u.readiness}%`, background:c,
+                      borderRadius:3, transition:'width .3s' }}/>
                   </div>
-                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:12,color:getColor(u.readiness),width:38,textAlign:'right'}}>{Math.round(u.readiness)}%</div>
-                  <div style={{width:8,height:8,borderRadius:'50%',background:getColor(u.readiness),flexShrink:0}}/>
+                  <div style={{
+                    fontFamily:'Share Tech Mono,monospace', fontSize:13, color:c,
+                    width:36, textAlign:'right', flexShrink:0,
+                  }}>{Math.round(u.readiness)}%</div>
+                  <div style={{
+                    width:7, height:7, borderRadius:'50%', background:c, flexShrink:0,
+                    boxShadow: isStonewall ? `0 0 6px ${c}` : 'none',
+                  }}/>
+                </div>
+              )
+            })}
+
+            {/* Metrics footer */}
+            <div style={{
+              marginTop:6, paddingTop:8, borderTop:'1px solid #1a3a20',
+              display:'flex', gap:0,
+            }}>
+              {[
+                { label:'SIGMA',  value:`${metrics.sigmaLevel.toFixed(1)}σ`,          color: metrics.sigmaLevel>=3?'#2ecc71':metrics.sigmaLevel>=2?'#f39c12':'#e74c3c' },
+                { label:'RCT',    value:`${metrics.avgRequestCycleTime}h`,             color: metrics.avgRequestCycleTime<=32?'#2ecc71':metrics.avgRequestCycleTime<=48?'#f39c12':'#e74c3c' },
+                { label:'S/W',    value:`${metrics.stonewallRate.toFixed(0)}%`,        color: metrics.stonewallRate<2?'#2ecc71':metrics.stonewallRate<10?'#f39c12':'#e74c3c' },
+                { label:'RDNS',   value:`${Math.round(metrics.avgReadiness??0)}%`,     color: (metrics.avgReadiness??0)>70?'#2ecc71':(metrics.avgReadiness??0)>50?'#f39c12':'#e74c3c' },
+              ].map(m => (
+                <div key={m.label} style={{ flex:1, textAlign:'center' }}>
+                  <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:8, color:'#2d5a32', letterSpacing:1 }}>{m.label}</div>
+                  <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:16, fontWeight:700, color:m.color }}>{m.value}</div>
                 </div>
               ))}
-              <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #1a3a20',display:'flex',gap:16,fontFamily:'Share Tech Mono,monospace',fontSize:10,color:'#1a5a3a'}}>
-                <span>σ {metrics.sigmaLevel.toFixed(1)}</span>
-                <span>RCT {metrics.avgRequestCycleTime}h</span>
-                <span>SW {metrics.stonewallRate.toFixed(1)}%</span>
-              </div>
             </div>
-          )}
 
-          {/* SUPPLY PANEL */}
-          {open === 'SUPPLY' && (
-            <div>
-              <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,letterSpacing:3,color:'#1a5a3a',marginBottom:10}}>THEATER SUPPLY STATUS</div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                {(['CL_I','CL_II','CL_III','CL_IV','CL_V','CL_IX'] as const).map((cls,i) => {
-                  const labels = ['CL I','CL II','CL III','CL IV','CL V','CL IX']
-                  const avg = unitList.length ? Math.round(unitList.reduce((a:number,u:any)=>a+(u.supplyLevels?.[cls]??0),0)/unitList.length) : 0
-                  const col = avg >= 60 ? '#2ecc71' : avg >= 30 ? '#f39c12' : '#e74c3c'
-                  return (
-                    <div key={cls} style={{background:'#0d1f10',border:'1px solid #1a3a20',borderRadius:4,padding:'8px 10px'}}>
-                      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#1a5a3a',marginBottom:4,letterSpacing:1}}>{labels[i]}</div>
-                      <div style={{height:4,background:'#050e06',borderRadius:2,marginBottom:4}}>
-                        <div style={{height:'100%',width:`${avg}%`,background:col,borderRadius:2}}/>
-                      </div>
-                      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:16,fontWeight:700,color:col}}>{avg}%</div>
+            {/* Advance button */}
+            <button onClick={advanceTurn} style={{
+              width:'100%', marginTop:10, padding:'9px 0',
+              background:'rgba(46,204,113,0.1)', border:'1px solid #27ae60',
+              color:'#2ecc71', fontFamily:'Barlow Condensed,sans-serif',
+              fontWeight:700, fontSize:14, letterSpacing:2, borderRadius:4, cursor:'pointer',
+              WebkitTapHighlightColor:'transparent',
+            }}>⏩ FORCE DAY ADVANCE</button>
+          </div>
+        )}
+
+        {tab === 'SUPPLY' && (
+          <div>
+            <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9,
+              letterSpacing:3, color:'#2d5a32', marginBottom:10 }}>THEATER SUPPLY — AVERAGE ACROSS ALL UNITS</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              {(['CL_I','CL_II','CL_III','CL_IV','CL_V','CL_IX'] as const).map((cls,i) => {
+                const labels = ['CL I','CL II','CL III','CL IV','CL V','CL IX']
+                const avg = unitList.length
+                  ? Math.round(unitList.reduce((a:number,u:any)=>a+(u.supplyLevels?.[cls]??0),0)/unitList.length)
+                  : 0
+                const col = avg >= 60 ? '#2ecc71' : avg >= 30 ? '#f39c12' : '#e74c3c'
+                return (
+                  <div key={cls} style={{ background:'#0d1f10', border:`1px solid ${col}30`,
+                    borderRadius:4, padding:'8px 10px' }}>
+                    <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9,
+                      color:'#2d5a32', marginBottom:5, letterSpacing:1 }}>{labels[i]}</div>
+                    <div style={{ height:5, background:'#050e06', borderRadius:2, marginBottom:5 }}>
+                      <div style={{ height:'100%', width:`${avg}%`, background:col, borderRadius:2,
+                        transition:'width .3s' }}/>
                     </div>
-                  )
-                })}
-              </div>
+                    <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:20,
+                      fontWeight:700, color:col }}>{avg}%</div>
+                  </div>
+                )
+              })}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* FEED PANEL */}
-          {open === 'FEED' && (
-            <div>
-              <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,letterSpacing:3,color:'#1a5a3a',marginBottom:10}}>BATTLEFIELD FEED</div>
-              {feedEvents.slice(0,8).map((ev:any) => (
+        {tab === 'FEED' && (
+          <div>
+            <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9,
+              letterSpacing:3, color:'#2d5a32', marginBottom:10 }}>BATTLEFIELD INTEL FEED</div>
+            {feedEvents.length === 0 && (
+              <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:11,
+                color:'#1a3a20', textAlign:'center', padding:'24px 0' }}>
+                NO ACTIVE EVENTS
+              </div>
+            )}
+            {feedEvents.slice(0,12).map((ev:any) => {
+              const isFlash    = ev.priority === 'FLASH'
+              const isPriority = ev.priority === 'PRIORITY'
+              const accent = isFlash ? '#ff4444' : isPriority ? '#ff8800' : '#2ecc71'
+              return (
                 <div key={ev.id} style={{
-                  marginBottom:8,padding:'8px 10px',borderRadius:3,
-                  background: ev.priority==='FLASH' ? 'rgba(255,50,50,.1)' : 'rgba(0,20,8,.6)',
-                  border:`1px solid ${ev.priority==='FLASH'?'#ff4444':ev.priority==='PRIORITY'?'#ff8800':'#1a3a20'}`,
+                  marginBottom:8, padding:'8px 10px', borderRadius:4,
+                  background: isFlash ? 'rgba(255,50,50,.08)' : 'rgba(0,20,8,.5)',
+                  border:`1px solid ${accent}30`,
                 }}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
-                    <span style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:13,
-                      color:ev.priority==='FLASH'?'#ff6644':ev.priority==='PRIORITY'?'#ffaa44':'#00ff88'}}>
-                      {ev.title}
-                    </span>
-                    <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,
-                      color:ev.priority==='FLASH'?'#ff4444':'#1a5a3a',border:'1px solid currentColor',padding:'1px 5px',borderRadius:2}}>
+                  <div style={{ display:'flex', justifyContent:'space-between',
+                    alignItems:'center', marginBottom:4 }}>
+                    <span style={{ fontFamily:'Barlow Condensed,sans-serif', fontWeight:700,
+                      fontSize:13, color:accent }}>{ev.title}</span>
+                    <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:8,
+                      color:accent, border:`1px solid ${accent}60`, padding:'1px 5px', borderRadius:2 }}>
                       {ev.priority}
                     </span>
                   </div>
-                  <div style={{fontFamily:'Barlow,sans-serif',fontSize:11,color:'#4a7a54',lineHeight:1.4}}>
-                    {(ev.report||'').slice(0,100)}{ev.report?.length>100?'...':''}
+                  <div style={{ fontFamily:'Barlow,sans-serif', fontSize:11,
+                    color:'#4a7a54', lineHeight:1.4 }}>
+                    {(ev.report||'').slice(0,120)}{(ev.report?.length??0)>120?'…':''}
                   </div>
                 </div>
-              ))}
-              {feedEvents.length === 0 && (
-                <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:'#1a3a20',textAlign:'center',padding:'20px 0'}}>
-                  NO ACTIVE EVENTS
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
