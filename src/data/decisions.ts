@@ -436,11 +436,112 @@ export const GENERIC_DECISIONS: any[] = [
   },
 ]
 
+
+
+// ── DOCTRINE-GROUNDED DECISIONS (Days 3, 6, 8, 11, 17, 20) ──────────────────
+// Sourced from: Commander's Supply Management Handbook (USMC 2014),
+// ADP 4-0 Sustainment, ATP 4-0.1, FM 4-0
+
+export const LSCO_DECISIONS: any[] = [
+  {
+    id:'LSCO_D3', day:3,
+    title:'MAINTENANCE CRISIS — VEHICLES DEADLINING',
+    type:'PRIORITY',
+    doctrineRef:'MCO P4400.150E / ADP 4-0 Para 3-14',
+    situation:'3 vehicles deadlined at your forward FOBs. CL IX (Repair Parts) at 22% theater-wide. Deadlined vehicles reduce convoy capacity by 35%. The Maintenance Management Officer is requesting a priority parts run.',
+    question:'How do you handle the maintenance crisis?',
+    relatedUnits:['FOB1','FOB2'], relatedNodes:[], forceMultiplierBonus:12, optimalChoice:'A',
+    choices:[
+      { id:'A', text:'Task immediate priority CL IX convoy to the MMO — vehicle readiness is convoy throughput', doctrineBasis:'ADP 4-0: Maintenance directly supports distribution. Deadlined vehicles reduce the ability to sustain forward forces.', outcome:'OPTIMAL', doctrineNote:'Correct. Repair parts (CL IX) are a combat multiplier. Every deadlined vehicle is a convoy that doesn\'t run. Priority-tasking the parts run restores throughput within 24 hours.', effects:[{type:'READINESS',delta:12},{type:'RCT',delta:-8},{type:'SIGMA',delta:0.2}] },
+      { id:'B', text:'Cross-level repair parts from the highest-readiness FOB to cover the shortfall', doctrineBasis:'Lateral transfer — acceptable interim solution', outcome:'ACCEPTABLE', doctrineNote:'Lateral transfer works but weakens the donor unit. Acceptable if a priority convoy is unavailable. Monitor donor unit for secondary readiness degradation.', effects:[{type:'READINESS',delta:6},{type:'RCT',delta:-3}] },
+      { id:'C', text:'Accept degraded convoy capacity — continue operations with 65% vehicle availability', doctrineBasis:'Accepting readiness degradation — never the preferred option', outcome:'SUBOPTIMAL', doctrineNote:'Reducing convoy capacity under pressure accelerates the logistics death spiral. Less capacity means slower resupply means more readiness degradation.', effects:[{type:'RCT',delta:10},{type:'SIGMA',delta:-0.2},{type:'STONEWALL',delta:4}] },
+      { id:'D', text:'Request guidance from Higher HQ on repair parts prioritization', doctrineBasis:'Escalation on tactical supply decision — doctrine violation', outcome:'FAILURE', doctrineNote:'MCO P4400.150E is clear: the CO owns the supply account. Escalating a tactical CL IX priority to HHQ wastes 24 hours and signals loss of command authority.', effects:[{type:'RCT',delta:18},{type:'SIGMA',delta:-0.4},{type:'STONEWALL',delta:8}] },
+    ]
+  },
+  {
+    id:'LSCO_D6', day:6,
+    title:'PUSH STOCKAGE vs. UNIT REQUEST — PRE-EXPENDED BIN',
+    type:'PRE_POSITION',
+    doctrineRef:'MCO P4400.150E Section VII / ADP 4-0',
+    situation:'Day 6. Intelligence indicates OPFOR will intensify operations Day 8-10. Units are currently at AMBER. You have 48 hours and 4 available convoys. The question: do you push supply forward now, or hold capacity for reactive distribution when units request it?',
+    question:'How do you posture your supply for the coming threat surge?',
+    relatedUnits:['FOB1','FOB2','FOB3'], relatedNodes:[], forceMultiplierBonus:14, optimalChoice:'A',
+    choices:[
+      { id:'A', text:'Pre-position Class III, V, and IX forward now — push before the fight, not during it', doctrineBasis:'ADP 4-0: Push distribution for predictable requirements. Pre-combat buildup requires proactive sustainment.', outcome:'OPTIMAL', doctrineNote:'Pre-positioning before OPFOR escalation is textbook. Supply in place before contact is worth double its value compared to supply en route during contact. Units fight better knowing supply is already there.', effects:[{type:'READINESS',delta:18},{type:'RCT',delta:-10},{type:'SIGMA',delta:0.3}] },
+      { id:'B', text:'Pre-position Class III only — hold V and IX pending confirmation of OPFOR intent', doctrineBasis:'Partial push — hedging on intelligence', outcome:'ACCEPTABLE', doctrineNote:'Reasonable risk management if intelligence is uncertain. However, CL V (ammo) shortfall on Day 8-10 will significantly degrade combat power.', effects:[{type:'READINESS',delta:8},{type:'RCT',delta:-4},{type:'SIGMA',delta:0.1}] },
+      { id:'C', text:'Hold all convoys in reserve — wait for the situation to develop before committing', doctrineBasis:'Economy of force misapplied — correct doctrine for after objectives are seized, not pre-combat', outcome:'SUBOPTIMAL', doctrineNote:'Withholding when escalation is 48 hours away is reactive sustainment at its worst. Units will be requesting supply at the exact moment they need to be fighting.', effects:[{type:'RCT',delta:14},{type:'STONEWALL',delta:5}] },
+      { id:'D', text:'Wait for units to submit Priority 01 requests — respect the formal request system', doctrineBasis:'Pull misapplied — formal request system not designed for pre-combat buildup', outcome:'FAILURE', doctrineNote:'Priority 01 requests during contact are too late. ADP 4-0 explicitly states push distribution is the correct method for predictable high-tempo requirements. Waiting for formal pull requests during buildup violates sustainment doctrine.', effects:[{type:'RCT',delta:24},{type:'SIGMA',delta:-0.5},{type:'STONEWALL',delta:10}] },
+    ]
+  },
+  {
+    id:'LSCO_D8', day:8,
+    title:'CONVOY SECURITY vs. THROUGHPUT SPEED',
+    type:'LOC',
+    doctrineRef:'ADP 4-0 Para 4-22 / FM 4-01 Route Security',
+    situation:'OPFOR has conducted 2 interdictions on your primary MSR this week. You have 6 convoys staged. Three options for today\'s resupply run. Each has different risk and time cost.',
+    question:'How do you secure tonight\'s convoy movement?',
+    relatedUnits:['FOB1','FOB2'], relatedNodes:[], forceMultiplierBonus:11, optimalChoice:'B',
+    choices:[
+      { id:'A', text:'Route ALL convoys via alternate LOC — +2 days transit, zero interdiction risk', doctrineBasis:'Security over speed — correct when MSR threat is confirmed', outcome:'OPTIMAL', doctrineNote:'With 2 interdictions in one week, the MSR threat is confirmed active. Protecting the convoy is worth the 2-day delay. A destroyed convoy delivers nothing and costs everything — vehicles, cargo, and personnel.', effects:[{type:'RCT',delta:6},{type:'SIGMA',delta:0.1},{type:'STONEWALL',delta:-2}] },
+      { id:'B', text:'Use primary MSR with armed escort — +1 day, 70% reduction in interdiction risk', doctrineBasis:'Risk-based routing with security — doctrine-correct compromise', outcome:'OPTIMAL', doctrineNote:'Armed escort with the primary MSR is the balanced approach. 70% risk reduction while maintaining acceptable throughput speed. Monitor for further interdiction attempts.', effects:[{type:'READINESS',delta:8},{type:'RCT',delta:2},{type:'SIGMA',delta:0.15}] },
+      { id:'C', text:'Push convoys through primary MSR unescorted — speed is critical right now', doctrineBasis:'Throughput without security — high-risk when threat is confirmed', outcome:'SUBOPTIMAL', doctrineNote:'Moving fast on a compromised route is gambling with your supply chain. One successful ambush costs more time and readiness than the 1-2 hours saved by skipping escort.', effects:[{type:'RCT',delta:-2},{type:'STONEWALL',delta:6},{type:'SIGMA',delta:-0.3}] },
+      { id:'D', text:'Suspend all convoy movement until route clearance operations are complete', doctrineBasis:'Full halt — only appropriate with enemy forces in strength, not skirmishers', outcome:'FAILURE', doctrineNote:'Stopping supply movement during active operations while units are in contact guarantees stonewall within 48 hours. Route clearance operations take 24-72 hours. Your units cannot wait that long.', effects:[{type:'RCT',delta:24},{type:'SIGMA',delta:-0.6},{type:'STONEWALL',delta:12}] },
+    ]
+  },
+  {
+    id:'LSCO_D11', day:11,
+    title:'MEDICAL MATERIEL — CLASS VIII CRISIS',
+    type:'PRIORITY',
+    doctrineRef:'ADP 4-0 Para 4-8 / TCCC Guidelines',
+    situation:'Day 11. Combat casualties have depleted CL VIII (Medical Materiel) at FOB IRON to 14%. Aviation Brigade (AVN BDE) is requesting a priority CL VIII air sortie. FOB IRON is ground-only accessible due to weather. MEDEVAC is operational but consuming blood products and surgical supplies.',
+    question:'How do you prioritize CL VIII distribution?',
+    relatedUnits:['FOB1','AVN_BDE'], relatedNodes:[], forceMultiplierBonus:15, optimalChoice:'A',
+    choices:[
+      { id:'A', text:'Task emergency air sortie for CL VIII to FOB IRON immediately — personnel readiness is non-negotiable', doctrineBasis:'ADP 4-0: CL VIII is life-critical. Personnel readiness always exceeds equipment readiness in priority.', outcome:'OPTIMAL', doctrineNote:'CL VIII at 14% with active MEDEVAC is a medical emergency, not a logistics inconvenience. Emergency air sortie is the only correct response. Personnel readiness (CL VIII) takes priority over all other supply classes when life is at risk.', effects:[{type:'READINESS',unitId:'FOB1',delta:22},{type:'SIGMA',delta:0.3},{type:'RCT',delta:-5}] },
+      { id:'B', text:'Lateral transfer CL VIII from AVN BDE to FOB IRON — they have 48%, can spare 20%', doctrineBasis:'Lateral transfer for life-critical supply — acceptable if air is unavailable', outcome:'ACCEPTABLE', doctrineNote:'Lateral transfer from AVN BDE works but takes longer than air sortie and weakens aviation medical readiness. Acceptable only if air sortie is truly unavailable. AVN BDE donor unit risks secondary degradation.', effects:[{type:'READINESS',delta:12},{type:'RCT',delta:4}] },
+      { id:'C', text:'Continue current allocation — FOB IRON is managing; prioritize fuel and ammo first', doctrineBasis:'Deferring CL VIII — doctrine violation when life is at stake', outcome:'SUBOPTIMAL', doctrineNote:'Personnel health directly determines combat effectiveness. 14% CL VIII with active casualties is a crisis requiring immediate action. Prioritizing CL III and CL V over medical materiel when troops are injured is the wrong call.', effects:[{type:'READINESS',delta:-10},{type:'SIGMA',delta:-0.3}] },
+      { id:'D', text:'Request MEDLOG support from theater — escalate to higher HQ for emergency medical resupply', doctrineBasis:'Escalation when organic solution exists — delay is unacceptable', outcome:'FAILURE', doctrineNote:'Theater MEDLOG support takes 48-72 hours. You have organic air assets and 14% CL VIII remaining. This is your decision to make. Escalating to theater when a life-critical solution is within your authority costs lives.', effects:[{type:'READINESS',delta:-20},{type:'SIGMA',delta:-0.5},{type:'STONEWALL',delta:6}] },
+    ]
+  },
+  {
+    id:'LSCO_D17', day:17,
+    title:'ACCOUNTABILITY FAILURE — CONVOY DISCREPANCY',
+    type:'ECONOMY_OF_FORCE',
+    doctrineRef:'MCO P4400.150E / MLSR Reporting Requirements',
+    situation:'Day 17. A convoy delivered to FOB VALOR reports short 40% of its CL V (ammo) manifest. The unit shows receipt for the full load. Your Supply Officer suspects pilferage or route compromise. You have 5 days to resolve before the discrepancy becomes an MLSR (Missing Lost Stolen or Recovered) report.',
+    question:'How do you resolve the accountability discrepancy?',
+    relatedUnits:['FOB2'], relatedNodes:[], forceMultiplierBonus:10, optimalChoice:'A',
+    choices:[
+      { id:'A', text:'Initiate immediate causative research — physical inventory at FOB VALOR within 24 hours', doctrineBasis:'MCO P4400.150E: Supply Officer has 5 days for causative research. Physical inventory is the correct first action.', outcome:'OPTIMAL', doctrineNote:'Causative research first. A physical inventory at FOB VALOR determines whether the CL V is on hand but unrecorded, or truly missing. Accurate accountability is non-negotiable — the CO is personally accountable for all supply.', effects:[{type:'SIGMA',delta:0.2},{type:'RCT',delta:-3}] },
+      { id:'B', text:'Accept the FOB VALOR manifest as correct — assume convoy manifest error', doctrineBasis:'Assuming manifest error without investigation — accountability failure', outcome:'SUBOPTIMAL', doctrineNote:'Accepting discrepancies without investigation erodes supply accountability. If the CL V is genuinely missing, you have 48 hours to initiate an MLSR. Assuming manifest error without research is improper.', effects:[{type:'RCT',delta:5},{type:'SIGMA',delta:-0.1}] },
+      { id:'C', text:'Replace the missing CL V immediately from depot — deal with accountability later', doctrineBasis:'Resupply before investigation — addresses symptom not cause', outcome:'SUBOPTIMAL', doctrineNote:'Replacing supply before determining what happened rewards potential theft and fails accountability requirements. Resupply AND investigate simultaneously.', effects:[{type:'READINESS',delta:5},{type:'SIGMA',delta:-0.15}] },
+      { id:'D', text:'Hold all CL V convoys pending investigation — no more ammo moves until resolved', doctrineBasis:'Full halt on ammunition distribution — catastrophic overreaction', outcome:'FAILURE', doctrineNote:'Stopping all CL V movement while units are in contact over a single manifest discrepancy is disproportionate and dangerous. Investigate the discrepancy while continuing distribution operations.', effects:[{type:'RCT',delta:20},{type:'STONEWALL',delta:8},{type:'SIGMA',delta:-0.4}] },
+    ]
+  },
+  {
+    id:'LSCO_D20', day:20,
+    title:'END-STATE SUSTAINMENT — FINAL PUSH',
+    type:'ECONOMY_OF_FORCE',
+    doctrineRef:'ADP 4-0 Para 1-3 / Culminating Point Analysis',
+    situation:`Final phase. ${5} days remaining in the campaign. Units are degraded. You have limited convoy capacity. This is the last major resupply window. Every decision from here determines whether the theater holds or collapses.`,
+    question:'How do you sustain the theater through the final phase?',
+    relatedUnits:['FOB1','FOB2','FOB3'], relatedNodes:[], forceMultiplierBonus:18, optimalChoice:'A',
+    choices:[
+      { id:'A', text:'ALL-IN push: maximum pre-positioning of CL III and CL V for the final days — burn convoy capacity now', doctrineBasis:'ADP 4-0: Pre-position for final phase requirements. Culminating point must be avoided.', outcome:'OPTIMAL', doctrineNote:'With 5 days remaining, this is the critical window. Every unit that enters the final phase below 60% supply risks culmination. Push everything you have now. The theater either holds through the final days or it doesn\'t — there is no middle ground.', effects:[{type:'READINESS',delta:20},{type:'RCT',delta:-12},{type:'SIGMA',delta:0.4}] },
+      { id:'B', text:'Prioritize main effort only — bring the decisive unit to GREEN, accept degradation elsewhere', doctrineBasis:'Economy of force — concentrate sustainment on the decisive effort', outcome:'ACCEPTABLE', doctrineNote:'With limited capacity in the final phase, concentrating on the decisive effort is doctrinally sound. Accept economy of force on supporting units. The main effort must succeed.', effects:[{type:'READINESS',delta:14},{type:'SIGMA',delta:0.2}] },
+      { id:'C', text:'Distribute evenly — keep all units at AMBER to prevent any single unit from collapsing', doctrineBasis:'Equal distribution — prevents cascade but enables no decisive action', outcome:'SUBOPTIMAL', doctrineNote:'Equal distribution keeps everyone equally mediocre. In the final phase, decisive action requires one unit at full strength. Amber across the board means no unit can execute its mission effectively.', effects:[{type:'READINESS',delta:8},{type:'SIGMA',delta:0.05}] },
+      { id:'D', text:'Hold convoy capacity in reserve — wait to see how the final phase develops', doctrineBasis:'Final phase reserve — catastrophic if units reach culminating point', outcome:'FAILURE', doctrineNote:'Holding supply back in the final 5 days is the classic sustainment failure mode. If units reach their culminating point before resupply arrives, the campaign is lost regardless of tactical success. This is not economy of force — this is logistics paralysis.', effects:[{type:'RCT',delta:20},{type:'SIGMA',delta:-0.6},{type:'STONEWALL',delta:10}] },
+    ]
+  },
+]
+
 export function getDecisionsForScenario(scenarioId: string, day: number): any | null {
   // Campaign 1 uses specific decisions
   if (scenarioId === 'CAMPAIGN_1') {
     return CAMPAIGN_1_DECISIONS.find(d => d.day === day) ?? null
   }
-  // All other campaigns use generic decisions
-  return GENERIC_DECISIONS.find(d => d.day === day) ?? null
+  // All other campaigns: LSCO decisions first (more specific), then generic
+  return LSCO_DECISIONS.find(d => d.day === day)
+      ?? GENERIC_DECISIONS.find(d => d.day === day)
+      ?? null
 }

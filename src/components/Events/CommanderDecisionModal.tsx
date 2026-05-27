@@ -145,12 +145,17 @@ export default function CommanderDecisionModal({ event, onResolved }: Props) {
           }}>
             {event.title}
           </div>
+          {event.doctrineRef && (
+            <div style={{
+              fontFamily:'Share Tech Mono,monospace', fontSize:9,
+              color:'#1a5a3a', letterSpacing:2, marginBottom:6,
+            }}>REF: {event.doctrineRef}</div>
+          )}
           <p style={{
             fontFamily:'Barlow,sans-serif', fontSize:13, lineHeight:1.65,
             color:'#88aa88', margin:0,
           }}>
-            {/* Show first 180 chars of report */}
-            {(event.report || '').slice(0, 200)}{event.report?.length > 200 ? '...' : ''}
+            {(event.report || event.situation || '').slice(0, 220)}{(event.report || event.situation || '').length > 220 ? '...' : ''}
           </p>
         </div>
 
@@ -249,10 +254,15 @@ export default function CommanderDecisionModal({ event, onResolved }: Props) {
                   </span>
                 </div>
                 <div style={{ fontFamily:'Barlow,sans-serif', fontSize:12, color:'#6a9a7a', lineHeight:1.5, marginBottom:4 }}>
-                  {opt.description}
+                  {opt.description || opt.text}
                 </div>
+                {opt.doctrineBasis && (
+                  <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9, color:'#1a4a3a', marginBottom:3, letterSpacing:1 }}>
+                    ▸ {opt.doctrineBasis.slice(0, 80)}{opt.doctrineBasis.length > 80 ? '...' : ''}
+                  </div>
+                )}
                 <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:10, color:'#ff8844', lineHeight:1.4 }}>
-                  CONSEQUENCE: {opt.consequence?.slice(0,120)}{opt.consequence?.length>120?'...':''}
+                  CONSEQUENCE: {opt.consequence?.slice(0,100)}{opt.consequence?.length>100?'...':''}
                 </div>
                 <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9, color:'#2a5a3a', marginTop:3 }}>
                   COST: {opt.cost}
