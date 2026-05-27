@@ -29,62 +29,158 @@ const MAP_CSS = `
 `
 
 // Mobile retractable campaign list
-function MobilePanel({ selected, scenarios, onSelect, onProceed, onBack }: any) {
-  const [collapsed, setCollapsed] = React.useState(false)
+// Mission popup card - floats above the tapped diamond icon
+function MissionPopup({ selected, onProceed, onBrief, onDismiss }: any) {
+  if (!selected) return null
+  const DIFF_COLORS: Record<string,string> = { STANDARD:'#2ecc71', ELEVATED:'#f39c12', SEVERE:'#e74c3c' }
+  const DIFF_LABEL: Record<string,string>  = { STANDARD:'● STANDARD', ELEVATED:'● ELEVATED', SEVERE:'● SEVERE' }
+  const c = DIFF_COLORS[selected.difficulty] || '#2ecc71'
   return (
-    <div style={{position:'fixed',inset:0,zIndex:10,pointerEvents:'none'}}>
-      {/* Collapse toggle */}
-      <button
-        onClick={()=>setCollapsed(c=>!c)}
-        style={{position:'absolute',bottom: collapsed ? 16 : '72%',left:'50%',transform:'translateX(-50%)',
-          zIndex:20,pointerEvents:'all',
-          background:'rgba(5,15,8,.95)',border:'1px solid #00ff88',color:'#00ff88',
-          fontFamily:'Share Tech Mono,monospace',fontSize:11,letterSpacing:2,
-          padding:'6px 18px',borderRadius:20,cursor:'pointer',
-          transition:'bottom .3s ease',
-        }}>
-        {collapsed ? '▲ SHOW OPERATIONS' : '▼ HIDE MAP'}
-      </button>
-
-      {/* Panel */}
-      <div style={{
-        position:'absolute',bottom:0,left:0,right:0,
-        height: collapsed ? '56px' : '72%',
-        background:'rgba(5,12,7,.96)',
-        borderTop:'2px solid #00ff88',
-        transition:'height .3s ease',
-        overflow:'hidden',
-        pointerEvents:'all',
-        display:'flex',flexDirection:'column',
+    <div
+      onClick={(e)=>e.stopPropagation()}
+      style={{
+        position:'fixed', bottom:24, left:12, right:12,
+        zIndex:500,
+        background:'rgba(4,12,6,.97)',
+        border:`1px solid ${c}`,
+        borderRadius:10,
+        padding:'16px',
+        boxShadow:`0 0 24px ${c}44, 0 8px 32px rgba(0,0,0,0.8)`,
+        animation:'popup-rise .25s ease',
       }}>
-        {/* Drag handle */}
-        <div style={{padding:'10px',textAlign:'center',flexShrink:0}}>
-          <div style={{width:40,height:3,background:'#1a4a20',borderRadius:2,margin:'0 auto'}}/>
+      <style>{`@keyframes popup-rise{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
+
+      {/* Dismiss */}
+      <button onClick={onDismiss} style={{
+        position:'absolute',top:10,right:12,
+        background:'transparent',border:'none',color:'#2d5a32',
+        fontSize:20,cursor:'pointer',lineHeight:1,padding:0,
+      }}>✕</button>
+
+      {/* Header */}
+      <div style={{marginBottom:10}}>
+        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,letterSpacing:3,color:c,marginBottom:4}}>
+          {DIFF_LABEL[selected.difficulty]}
         </div>
-        {/* Scrollable list */}
-        <div style={{flex:1,overflowY:'auto',padding:'0 12px 80px'}}>
-          {scenarios.map((s:any)=>(
-            <div key={s.id} onClick={()=>onSelect(s)}
-              style={{padding:'12px',marginBottom:8,borderRadius:4,cursor:'pointer',
-                background: selected?.id===s.id ? 'rgba(0,255,136,.12)' : 'rgba(0,20,8,.6)',
-                border:`1px solid ${selected?.id===s.id?'#00ff88':'#1a3a20'}`,
-              }}>
-              <div style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:15,color:'#00ff88',letterSpacing:1}}>{s.operationName}</div>
-              <div style={{fontFamily:'Barlow,sans-serif',fontSize:11,color:'#4a7a54',marginTop:2}}>{s.theater}</div>
-            </div>
-          ))}
+        <div style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:22,color:'#fff',letterSpacing:1,lineHeight:1.1}}>
+          {selected.operationName}
         </div>
-        {/* Selected + deploy */}
-        {selected && (
-          <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'10px 12px',background:'rgba(5,12,7,.98)',borderTop:'1px solid #1a3a20'}}>
-            <div style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:13,color:'#00ff88',fontWeight:700,marginBottom:6}}>{selected.operationName}</div>
-            <button onClick={onProceed} style={{width:'100%',padding:'12px',background:'rgba(0,255,136,.15)',border:'1px solid #00ff88',color:'#00ff88',fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:15,letterSpacing:2,borderRadius:4,cursor:'pointer'}}>
-              MISSION BRIEF →
-            </button>
+        <div style={{fontFamily:'Barlow,sans-serif',fontSize:12,color:'#7aab7e',marginTop:3}}>
+          {selected.subtitle}
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div style={{display:'flex',gap:8,marginBottom:14}}>
+        {[
+          {label:'DAYS', value:`D-${selected.duration}`},
+          {label:'SIGMA', value:`σ${selected.startingSigma}`},
+          {label:'RCT', value:`${selected.startingRCT}h`},
+        ].map(m=>(
+          <div key={m.label} style={{
+            flex:1,background:'rgba(0,0,0,.4)',border:'1px solid #1a3a20',
+            borderRadius:4,padding:'6px 8px',textAlign:'center',
+          }}>
+            <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:1}}>{m.label}</div>
+            <div style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:16,color:c}}>{m.value}</div>
           </div>
-        )}
+        ))}
+      </div>
+
+      {/* Action buttons */}
+      <div style={{display:'flex',gap:8}}>
+        <button onClick={onBrief} style={{
+          flex:1,padding:'11px 0',
+          background:'transparent',border:`1px solid ${c}60`,color:'#7aab7e',
+          fontFamily:'Barlow Condensed,sans-serif',fontWeight:600,fontSize:14,letterSpacing:2,
+          borderRadius:5,cursor:'pointer',
+        }}>▶ BRIEFING</button>
+        <button onClick={onProceed} style={{
+          flex:2,padding:'11px 0',
+          background:`${c}22`,border:`1px solid ${c}`,color:c,
+          fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:16,letterSpacing:2,
+          borderRadius:5,cursor:'pointer',
+        }}>DEPLOY →</button>
       </div>
     </div>
+  )
+}
+
+// Nav arrows pointing to off-screen missions
+function NavArrows({ scenarios, mapRef, onFly }: any) {
+  const [arrows, setArrows] = React.useState<any[]>([])
+  const DIFF_COLORS: Record<string,string> = { STANDARD:'#2ecc71', ELEVATED:'#f39c12', SEVERE:'#e74c3c' }
+
+  React.useEffect(() => {
+    const update = () => {
+      if (!mapRef.current) return
+      const rect = mapRef.current.getBoundingClientRect()
+      const cx = rect.width / 2
+      const cy = rect.height / 2
+      const result: any[] = []
+
+      scenarios.forEach((s: any) => {
+        // Get pixel position of marker via lat/lng
+        const el = mapRef.current?.querySelector(`[data-scenario="${s.id}"]`) as HTMLElement
+        if (!el) return
+        const r = el.getBoundingClientRect()
+        const mx = r.left + r.width/2 - rect.left
+        const my = r.top + r.height/2 - rect.top
+        const onscreen = mx > 20 && mx < rect.width-20 && my > 20 && my < rect.height-20
+        if (onscreen) return
+
+        // Calculate angle from center to marker
+        const dx = mx - cx
+        const dy = my - cy
+        const angle = Math.atan2(dy, dx) * 180 / Math.PI
+
+        // Clamp to screen edge
+        const margin = 40
+        const dist = Math.sqrt(dx*dx+dy*dy)
+        const ex = cx + (dx/dist) * (cx - margin)
+        const ey = cy + (dy/dist) * (cy - margin)
+
+        result.push({ s, angle, x: Math.max(margin, Math.min(rect.width-margin, ex)), y: Math.max(margin, Math.min(rect.height-margin, ey)) })
+      })
+      setArrows(result)
+    }
+    const iv = setInterval(update, 500)
+    update()
+    return () => clearInterval(iv)
+  }, [scenarios])
+
+  return (
+    <>
+      <style>{`
+        @keyframes arrow-pulse{0%,100%{opacity:1;transform:translate(-50%,-50%) scale(1)}50%{opacity:0.6;transform:translate(-50%,-50%) scale(0.85)}}
+      `}</style>
+      {arrows.map(({s,angle,x,y})=>{
+        const c = DIFF_COLORS[s.difficulty]||'#2ecc71'
+        const abbr = s.operationName.replace('OPERATION ','').slice(0,8)
+        return (
+          <div key={s.id} onClick={()=>onFly(s)} style={{
+            position:'absolute', left:x, top:y,
+            transform:'translate(-50%,-50%)',
+            zIndex:300, cursor:'pointer', pointerEvents:'all',
+            animation:'arrow-pulse 1.6s ease-in-out infinite',
+            display:'flex', flexDirection:'column', alignItems:'center', gap:2,
+          }}>
+            <div style={{
+              width:36,height:36,borderRadius:'50%',
+              background:`${c}22`,border:`2px solid ${c}`,
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontSize:16,
+              transform:`rotate(${angle}deg)`,
+            }}>→</div>
+            <div style={{
+              fontFamily:'Share Tech Mono,monospace',fontSize:8,color:c,
+              letterSpacing:1,whiteSpace:'nowrap',
+              background:'rgba(4,12,6,.85)',padding:'2px 4px',borderRadius:2,
+            }}>{abbr}</div>
+          </div>
+        )
+      })}
+    </>
   )
 }
 
@@ -104,15 +200,64 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
 
     ALL_SCENARIOS.forEach(s => {
       const c = DCOL[s.difficulty]
+      const isMob = window.innerWidth < 768
+      // 3D diamond SVG icon
+      const cl = c.replace('#','')
+      const diamondSvg = isMob ? `
+        <div style="width:52px;height:60px;position:relative;cursor:pointer;animation:diamond-float 2.4s ease-in-out infinite;">
+          <style>
+            @keyframes diamond-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+            @keyframes diamond-pulse{0%{transform:translate(-50%,-50%) scale(0.6);opacity:0.8}100%{transform:translate(-50%,-50%) scale(1.8);opacity:0}}
+          </style>
+          <!-- pulse ring -->
+          <div style="position:absolute;bottom:4px;left:50%;width:28px;height:8px;border-radius:50%;background:${c};transform:translate(-50%,-50%);animation:diamond-pulse 1.8s ease-out infinite;opacity:0.6;filter:blur(2px);"></div>
+          <!-- 3D diamond SVG -->
+          <svg width="52" height="52" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 4px 8px ${c}99)">
+            <defs>
+              <linearGradient id="dg-top-${cl}" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="${c}" stop-opacity="1"/>
+                <stop offset="100%" stop-color="${c}" stop-opacity="0.6"/>
+              </linearGradient>
+              <linearGradient id="dg-left-${cl}" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="${c}" stop-opacity="0.9"/>
+                <stop offset="100%" stop-color="${c}" stop-opacity="0.5"/>
+              </linearGradient>
+              <linearGradient id="dg-right-${cl}" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="${c}" stop-opacity="0.4"/>
+                <stop offset="100%" stop-color="${c}" stop-opacity="0.2"/>
+              </linearGradient>
+              <linearGradient id="dg-bot-${cl}" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="${c}" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="${c}" stop-opacity="0.1"/>
+              </linearGradient>
+            </defs>
+            <!-- top-left face (bright) -->
+            <polygon points="26,4 8,20 26,28" fill="url(#dg-top-${cl})"/>
+            <!-- top-right face (mid) -->
+            <polygon points="26,4 44,20 26,28" fill="url(#dg-left-${cl})"/>
+            <!-- bottom-left face (dark) -->
+            <polygon points="8,20 26,28 26,48" fill="url(#dg-right-${cl})"/>
+            <!-- bottom-right face (darkest) -->
+            <polygon points="44,20 26,28 26,48" fill="url(#dg-bot-${cl})"/>
+            <!-- edge highlights -->
+            <polygon points="26,4 8,20 26,28 44,20" fill="none" stroke="${c}" stroke-width="0.8" stroke-opacity="0.6"/>
+            <line x1="26" y1="4" x2="26" y2="48" stroke="${c}" stroke-width="0.5" stroke-opacity="0.3"/>
+            <line x1="8" y1="20" x2="44" y2="20" stroke="${c}" stroke-width="0.5" stroke-opacity="0.3"/>
+            <!-- top sparkle -->
+            <circle cx="26" cy="4" r="2" fill="white" opacity="0.9"/>
+          </svg>
+        </div>` 
+        : '<div style="width:16px;height:16px;border-radius:50%;background:' + c + ';border:2px solid rgba(0,0,0,0.6);box-shadow:0 0 10px ' + c + '80;cursor:pointer;"></div>'
       const icon = L.divIcon({
         className:'',
-        html:'<div style="width:16px;height:16px;border-radius:50%;background:' + c + ';border:2px solid rgba(0,0,0,0.6);box-shadow:0 0 10px ' + c + '80;cursor:pointer;"></div>',
-        iconSize:[16,16], iconAnchor:[8,8],
+        html: diamondSvg,
+        iconSize: isMob ? [52,60] : [16,16],
+        iconAnchor: isMob ? [26,48] : [8,8],
       })
       L.marker([s.mapCenter[0], s.mapCenter[1]], { icon })
         .addTo(map)
-        .bindTooltip(s.operationName, { direction:'top', offset:[0,-10], className:'map-tt' })
-        .on('click', () => { setSel(s); setThtr(s.theater) })
+        .bindTooltip(s.operationName, { direction:'top', offset:[0, isMob ? -50 : -10], className:'map-tt' })
+        .on('click', (e) => { L.DomEvent.stopPropagation(e); setSel(s); setThtr(s.theater) })
     })
     return () => { map.remove(); mapInst.current = null }
   }, [])
@@ -129,18 +274,25 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
 
   const isMobile = window.innerWidth < 768
 
+  const [showBrief, setShowBrief] = React.useState(false)
+
+  if (showBrief && sel) {
+    return null // App will render MissionBrief — handled by onSelect
+  }
+
   if (isMobile) {
     return (
-      <div style={{ position:'fixed', inset:0, background:'#050e06' }}>
+      <div style={{ position:'fixed', inset:0, background:'#050e06' }}
+        onClick={() => setSel(null)}>
         <style>{MAP_CSS}</style>
         {/* Map fills full screen */}
         <div ref={mapRef} style={{ position:'absolute', inset:0 }} />
 
-        {/* Theater buttons top-left */}
-        <div style={{ position:'absolute', top:12, left:12, zIndex:1000, display:'flex', flexDirection:'column', gap:6 }}>
+        {/* Theater filter — top left, compact */}
+        <div style={{ position:'absolute', top:12, left:12, zIndex:400, display:'flex', flexDirection:'column', gap:5 }}>
           {(Object.keys(THEATERS) as TheaterRegion[]).map(t => (
-            <button key={t} onClick={() => flyTo(t)} style={{
-              background: thtr===t ? 'rgba(46,204,113,0.25)' : 'rgba(13,31,15,0.92)',
+            <button key={t} onClick={(e) => { e.stopPropagation(); flyTo(t) }} style={{
+              background: thtr===t ? 'rgba(46,204,113,0.25)' : 'rgba(4,12,6,0.92)',
               border:'1px solid ' + (thtr===t ? '#2ecc71' : '#2d5a32'),
               color: thtr===t ? '#2ecc71' : '#7aab7e',
               padding:'5px 10px', borderRadius:3, cursor:'pointer', fontSize:10,
@@ -149,13 +301,28 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
           ))}
         </div>
 
-        {/* Retractable panel slides up from bottom */}
-        <MobilePanel
+        {/* Hint text when nothing selected */}
+        {!sel && (
+          <div style={{
+            position:'absolute', top:12, right:12, zIndex:400,
+            fontFamily:'Share Tech Mono,monospace', fontSize:9, letterSpacing:1,
+            color:'#2d5a32', background:'rgba(4,12,6,.85)',
+            padding:'6px 10px', borderRadius:4, border:'1px solid #1a3a20',
+            textAlign:'right',
+          }}>
+            TAP A DIAMOND<br/>TO SELECT MISSION
+          </div>
+        )}
+
+        {/* Nav arrows for off-screen missions */}
+        <NavArrows scenarios={ALL_SCENARIOS} mapRef={mapRef} onFly={flyToS} />
+
+        {/* Mission popup card */}
+        <MissionPopup
           selected={sel}
-          scenarios={ALL_SCENARIOS}
-          onSelect={(s: MissionScenario) => { setSel(s); flyToS(s) }}
+          onDismiss={() => setSel(null)}
+          onBrief={() => { if(sel) onSelect(sel) }}
           onProceed={() => { if(sel) onSelect(sel) }}
-          onBack={onBack}
         />
       </div>
     )

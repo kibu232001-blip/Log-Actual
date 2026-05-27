@@ -79,8 +79,6 @@ export default function MissionBrief({ scenario, onProceed, onBack }: Props) {
     )
   }
 
-  const isMobile = window.innerWidth < 768
-
   return (
     <div style={{
       position:'fixed', inset:0, background:'#050e06',
