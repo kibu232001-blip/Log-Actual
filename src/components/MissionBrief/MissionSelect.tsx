@@ -37,10 +37,12 @@ function MissionPopup({ selected, onProceed, onBrief, onDismiss }: any) {
   const c = DIFF_COLORS[selected.difficulty] || '#2ecc71'
   return (
     <div
+      onTouchStart={(e)=>e.stopPropagation()}
+      onTouchEnd={(e)=>e.stopPropagation()}
       onClick={(e)=>e.stopPropagation()}
       style={{
         position:'fixed', bottom:24, left:12, right:12,
-        zIndex:500,
+        zIndex:600,
         background:'rgba(4,12,6,.97)',
         border:`1px solid ${c}`,
         borderRadius:10,
@@ -51,10 +53,14 @@ function MissionPopup({ selected, onProceed, onBrief, onDismiss }: any) {
       <style>{`@keyframes popup-rise{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
 
       {/* Dismiss */}
-      <button onClick={onDismiss} style={{
+      <button
+        onTouchEnd={(e)=>{ e.stopPropagation(); e.preventDefault(); onDismiss() }}
+        onClick={(e)=>{ e.stopPropagation(); onDismiss() }}
+        style={{
         position:'absolute',top:10,right:12,
         background:'transparent',border:'none',color:'#2d5a32',
-        fontSize:20,cursor:'pointer',lineHeight:1,padding:0,
+        fontSize:20,cursor:'pointer',lineHeight:1,padding:4,
+        WebkitTapHighlightColor:'transparent',
       }}>✕</button>
 
       {/* Header */}
@@ -89,17 +95,23 @@ function MissionPopup({ selected, onProceed, onBrief, onDismiss }: any) {
 
       {/* Action buttons */}
       <div style={{display:'flex',gap:8}}>
-        <button onClick={onBrief} style={{
-          flex:1,padding:'11px 0',
+        <button
+          onTouchEnd={(e)=>{ e.stopPropagation(); e.preventDefault(); onBrief() }}
+          onClick={(e)=>{ e.stopPropagation(); onBrief() }}
+          style={{
+          flex:1,padding:'12px 0',
           background:'transparent',border:`1px solid ${c}60`,color:'#7aab7e',
           fontFamily:'Barlow Condensed,sans-serif',fontWeight:600,fontSize:14,letterSpacing:2,
-          borderRadius:5,cursor:'pointer',
+          borderRadius:5,cursor:'pointer', WebkitTapHighlightColor:'transparent',
         }}>▶ BRIEFING</button>
-        <button onClick={onProceed} style={{
-          flex:2,padding:'11px 0',
+        <button
+          onTouchEnd={(e)=>{ e.stopPropagation(); e.preventDefault(); onProceed() }}
+          onClick={(e)=>{ e.stopPropagation(); onProceed() }}
+          style={{
+          flex:2,padding:'12px 0',
           background:`${c}22`,border:`1px solid ${c}`,color:c,
           fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:16,letterSpacing:2,
-          borderRadius:5,cursor:'pointer',
+          borderRadius:5,cursor:'pointer', WebkitTapHighlightColor:'transparent',
         }}>DEPLOY →</button>
       </div>
     </div>
@@ -282,11 +294,18 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
 
   if (isMobile) {
     return (
-      <div style={{ position:'fixed', inset:0, background:'#050e06' }}
-        onClick={() => setSel(null)}>
+      <div style={{ position:'fixed', inset:0, background:'#050e06' }}>
         <style>{MAP_CSS}</style>
         {/* Map fills full screen */}
         <div ref={mapRef} style={{ position:'absolute', inset:0 }} />
+
+        {/* Dismiss overlay — sits above map, below popup; only when popup is open */}
+        {sel && (
+          <div
+            onClick={() => setSel(null)}
+            style={{ position:'absolute', inset:0, zIndex:490, background:'transparent' }}
+          />
+        )}
 
         {/* Theater filter — top left, compact */}
         <div style={{ position:'absolute', top:12, left:12, zIndex:400, display:'flex', flexDirection:'column', gap:5 }}>
