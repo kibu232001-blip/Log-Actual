@@ -204,7 +204,13 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
 
   useEffect(() => {
     if (!mapRef.current || mapInst.current) return
-    const map = L.map(mapRef.current, { center:[45,30], zoom:3 })
+    const worldBounds: L.LatLngBoundsExpression = [[-82, -180], [82, 180]]
+    const map = L.map(mapRef.current, {
+      center:[45,30], zoom:3,
+      maxBounds: worldBounds,
+      maxBoundsViscosity: 1.0,
+      minZoom: 2,
+    })
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution:'© OpenStreetMap', className:'map-dark',
     }).addTo(map)
