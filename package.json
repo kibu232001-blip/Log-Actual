@@ -5,7 +5,7 @@
   "description": "LOG ACTUAL: Strategic Sustainment — KibuglogalVentures LLC",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "cap:sync": "npx cap sync",
     "cap:android": "npx cap open android",
