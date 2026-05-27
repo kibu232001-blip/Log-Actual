@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useGameStore } from '../../store/gameStore'
+import AudioEngine from '../../engine/AudioEngine'
 
 // ── LAYER 1: SCROLLING TICKER (ROUTINE) ──────────────────────────────────────
 function TickerBar({ events }: { events: any[] }) {
@@ -205,9 +206,11 @@ export default function NewsFeedSystem() {
       setSeenIds(prev => new Set([...prev, ev.id]))
 
       if (ev.priority === 'FLASH' || ev.priority === 'IMMEDIATE') {
-        // Only show flash modal if no response options handled elsewhere
+        AudioEngine.resume()
+        AudioEngine.playAlert('FLASH')
         if (!flashEvent) setFlashEvent(ev)
       } else if (ev.priority === 'PRIORITY') {
+        AudioEngine.playAlert('PRIORITY')
         const toast: Toast = {
           id: ev.id,
           title: ev.title,

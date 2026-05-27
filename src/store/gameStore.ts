@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { GameState, GameActions, UIState, TurnPhase, Unit, UnitStatus } from '../types/game'
-import { CAMPAIGN_1_DECISIONS } from '../data/decisions'
+import { CAMPAIGN_1_DECISIONS, getDecisionsForScenario } from '../data/decisions'
 import { CAMPAIGN_1_NODES, CAMPAIGN_1_LOCS } from '../data/nodes'
 import { CommanderEvent, selectCommanderEvent } from '../data/Commanders'
 import {
@@ -313,7 +313,9 @@ export const useGameStore = create<Store>((set,get)=>({
             })
           const crit=[nl.CL_I,nl.CL_III,nl.CL_V],minLvl=Math.min(...crit)
           const newR=Math.max(0,unit.readiness-(minLvl<20?15:minLvl<40?5:0))
-          return [id,{...unit,supplyLevels:nl,readiness:newR,status:getStatus(newR)}]
+          const newStatus = getStatus(newR, unit.personnelStrength, unit.stonewallStreak)
+          const newStreak = newStatus==='STONEWALL' ? (unit.stonewallStreak||0)+1 : 0
+          return [id,{...unit,supplyLevels:nl,readiness:newR,status:newStatus,stonewallStreak:newStreak}]
         })
       )
 
@@ -442,7 +444,7 @@ export const useGameStore = create<Store>((set,get)=>({
                            : null
 
     // Pending doctrine decision
-    const pending=advancing?(CAMPAIGN_1_DECISIONS.find(d=>d.day===nextDay)??null):null
+    const pending=advancing?(getDecisionsForScenario(s.activeScenarioId||'CAMPAIGN_1', nextDay)??null):null
     const sw2=calcSW(updatedUnits),rct=calcRCT(updatedUnits),sigma=calcSigma(sw2,rct),avg=calcAvg(updatedUnits)
 
     // ── MISSING VARS THAT WERE CRASHING ADVANCE ──────────────────────────────
@@ -488,6 +490,115 @@ export const useGameStore = create<Store>((set,get)=>({
           effects: atk.effects||[], affectedAssets:[atk.targetLOC||''].filter(Boolean),
           acknowledged:false, mitigated:false, location:'FRONT', mitigationWindow:60,
           responseOptions: atk.responseOptions||[],
+        })
+      }
+    })
+
+    // Add critical supply alerts — FLASH when unit near stonewall
+    Object.values(updatedUnits).forEach((u: any) => {
+      const critLvls = [u.supplyLevels.CL_I, u.supplyLevels.CL_III, u.supplyLevels.CL_V]
+      const minCrit = Math.min(...critLvls)
+      const critIdx = critLvls.indexOf(minCrit)
+      const critClass = ['CL I','CL III','CL V'][critIdx]
+      const critKey   = ['CL_I','CL_III','CL_V'][critIdx]
+      const daysLeft  = Math.floor(minCrit / (u.dailyConsumption?.[critKey as any] || 6))
+
+      if (u.status === 'STONEWALL') {
+        dayEvents.push({
+          id:`STONEWALL_${u.id}_D${nextDay}`, type:'LOGREP',
+          title:`◉ STONEWALL — ${u.shortName || u.name} COMBAT INEFFECTIVE`,
+          report:`${u.name} has reached zero supply on ${critClass}. Unit is combat ineffective. Immediate emergency resupply required or the unit will be lost.`,
+          priority:'FLASH', severity:'CRITICAL',
+          effects:[], affectedAssets:[u.id],
+          acknowledged:false, mitigated:false, location:'FRONT', mitigationWindow:60,
+          responseOptions: [
+            {
+              id:'A', label:`EMERGENCY AIR SORTIE → ${u.shortName}`,
+              risk:'MEDIUM', isDoctrineCorrect:true,
+              description:`Task an immediate air sortie to ${u.name}. Delivers critical supply within hours. High cost but saves the unit.`,
+              consequence:`${u.name} receives emergency resupply. Unit begins recovery. Readiness +25%. Air assets expended.`,
+              cost:'HIGH — 1 air sortie expended',
+              effects:[
+                { type:'SUPPLY_ADD', target:u.id, supplyClass:critIdx, magnitude:45 },
+                { type:'SUPPLY_ADD', target:u.id, supplyClass:0, magnitude:20 },
+                { type:'SUPPLY_ADD', target:u.id, supplyClass:4, magnitude:20 },
+                { type:'READINESS_DELTA', target:u.id, magnitude:25 },
+                { type:'RCT_DELTA', magnitude:-3 },
+              ],
+            },
+            {
+              id:'B', label:`PRIORITY GROUND CONVOY → ${u.shortName}`,
+              risk:'LOW', isDoctrineCorrect:true,
+              description:`Dispatch priority ground convoy now. Larger load than air, arrives next day.`,
+              consequence:`${u.name} resupplied tomorrow. Full class restoration. Readiness +15% on arrival.`,
+              cost:'MEDIUM — 1 ground convoy',
+              effects:[
+                { type:'SUPPLY_ADD', target:u.id, supplyClass:critIdx, magnitude:60 },
+                { type:'SUPPLY_ADD', target:u.id, supplyClass:0, magnitude:30 },
+                { type:'SUPPLY_ADD', target:u.id, supplyClass:4, magnitude:30 },
+                { type:'READINESS_DELTA', target:u.id, magnitude:15 },
+              ],
+            },
+            {
+              id:'C', label:'ACCEPT DEGRADATION — TRIAGE TO OTHER UNITS',
+              risk:'CRITICAL', isDoctrineCorrect:false,
+              description:`Acknowledge ${u.name} as economy of force. Redirect assets to other units.`,
+              consequence:`${u.name} remains in STONEWALL. Stonewall streak continues toward unit loss. High strategic risk.`,
+              cost:'CRITICAL — unit may be permanently lost',
+              effects:[
+                { type:'READINESS_DELTA', target:u.id, magnitude:-15 },
+                { type:'RCT_DELTA', magnitude:8 },
+              ],
+            },
+          ],
+        })
+      } else if (u.status === 'RED' && daysLeft <= 2) {
+        dayEvents.push({
+          id:`CRIT_${u.id}_D${nextDay}`, type:'LOGREP',
+          title:`⚠ ${u.shortName || u.name} — ${daysLeft <= 1 ? 'STONEWALL IMMINENT' : 'CRITICAL SUPPLY'}`,
+          report:`${u.name}: ${critClass} at ${Math.round(minCrit)}%. ${daysLeft <= 1 ? 'STONEWALL IN <24 HOURS without resupply.' : `Approximately ${daysLeft} days of ${critClass} remaining.`} Commander action required.`,
+          priority:'PRIORITY', severity:'MAJOR',
+          effects:[], affectedAssets:[u.id],
+          acknowledged:false, mitigated:false, location:'FRONT', mitigationWindow:60,
+          responseOptions: [
+            {
+              id:'A', label:`PUSH CONVOY NOW → ${u.shortName}`,
+              risk:'LOW', isDoctrineCorrect:true,
+              description:`Dispatch resupply convoy immediately. Addresses the shortage before stonewall.`,
+              consequence:`${u.name} resupplied. ${critClass} restored +50%. Stonewall prevented. Readiness stabilized.`,
+              cost:'LOW — standard convoy tasking',
+              effects:[
+                { type:'SUPPLY_ADD', target:u.id, supplyClass:critIdx, magnitude:50 },
+                { type:'SUPPLY_ADD', target:u.id, supplyClass:0, magnitude:15 },
+                { type:'SUPPLY_ADD', target:u.id, supplyClass:4, magnitude:15 },
+                { type:'READINESS_DELTA', target:u.id, magnitude:10 },
+                { type:'RCT_DELTA', magnitude:-2 },
+              ],
+            },
+            {
+              id:'B', label:'LATERAL TRANSFER FROM MOST SUPPLIED UNIT',
+              risk:'MEDIUM', isDoctrineCorrect:true,
+              description:`Transfer supply from the highest-readiness unit to cover the shortage.`,
+              consequence:`Shortage covered from lateral transfer. Both units stabilized at AMBER. No convoy needed.`,
+              cost:'MEDIUM — donor unit loses 15% supply',
+              effects:[
+                { type:'SUPPLY_ADD', target:u.id, supplyClass:critIdx, magnitude:30 },
+                { type:'READINESS_DELTA', target:u.id, magnitude:8 },
+                { type:'RCT_DELTA', magnitude:2 },
+              ],
+            },
+            {
+              id:'C', label:'HOLD — MONITOR AND REASSESS TOMORROW',
+              risk:'HIGH', isDoctrineCorrect:false,
+              description:`Delay action and reassess on next day advance. Accepts stonewall risk.`,
+              consequence:`${u.name} continues to drain. High probability of stonewall within 24-48 hours.`,
+              cost:'HIGH — unit may enter stonewall',
+              effects:[
+                { type:'READINESS_DELTA', target:u.id, magnitude:-8 },
+                { type:'RCT_DELTA', magnitude:5 },
+              ],
+            },
+          ],
         })
       }
     })

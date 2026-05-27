@@ -53,7 +53,7 @@ function NATOSymbol({ nodeType, unitId, col, size, isDark:dk, isAmber, isStonewa
 }) {
   const s = size
   const sw = Math.max(1.5, s*0.07)
-  const anim = isStonewall?'sw-pulse 1.3s ease-in-out infinite':isAmber?'amb-breath 2.2s ease-in-out infinite':undefined
+  const anim = isStonewall?'sw-pulse 0.9s ease-in-out infinite':isAmber?'node-critical 2.0s ease-in-out infinite':'amb-breath 3s ease-in-out infinite'
   const op = dk ? 0.25 : 1
 
   if (nodeType==='SEAPORT') return (
@@ -416,7 +416,7 @@ export default function TheaterMap({ onBack }: Props) {
                 {isDark && (
                   <div style={{position:'absolute',width:nSize+20,height:nSize+20,borderRadius:node.type==='circle'?'50%':node.type==='square'?4:0,border:'1px solid #ff000030',boxShadow:'0 0 20px rgba(0,0,0,0.9)',background:'rgba(0,0,0,0.6)',zIndex:2}}/>
                 )}
-                <div style={{position:'absolute',width:nSize+16,height:nSize+16,borderRadius:node.type==='circle'?'50%':node.type==='square'?4:0,border:`1px solid ${col}22`,boxShadow:`0 0 ${isSW?22:12}px ${col}${isSW?'50':'18'}`,animation:isSW?'sw-pulse 1.3s ease-in-out infinite':undefined}}/>
+                <div style={{position:'absolute',width:nSize+16,height:nSize+16,borderRadius:node.type==='circle'?'50%':node.type==='square'?4:0,border:`1px solid ${col}22`,boxShadow:`0 0 ${isSW?22:12}px ${col}${isSW?'50':'18'}`,animation:isSW?'sw-pulse 0.9s ease-in-out infinite':undefined}}/>
                 <NATOSymbol
                   nodeType={node.nodeType}
                   unitId={node.unitId}

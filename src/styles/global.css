@@ -180,3 +180,65 @@ body {
 
 .stonewall-pulse { animation: pulse-red 1.4s ease-in-out infinite; }
 .fade-in { animation: fade-in 0.3s ease forwards; }
+
+/* ── SIGMA REACTIVE VARIABLES ───────────────────────────────────────────────── */
+:root {
+  --accent:        #00ff88;
+  --accent-dim:    #1a5a3a;
+  --bg-base:       #030a0e;
+  --bg-panel:      #07100a;
+  --border:        #1a3a20;
+  --sigma-glow:    none;
+  --scan-opacity:  0.02;
+}
+
+/* ── SCANLINE OVERLAY ────────────────────────────────────────────────────────── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, var(--scan-opacity)) 2px,
+    rgba(0, 0, 0, var(--scan-opacity)) 4px
+  );
+}
+
+/* ── SIGMA GLOW ON BODY ──────────────────────────────────────────────────────── */
+body {
+  box-shadow: var(--sigma-glow);
+}
+
+/* ── NODE PULSE ANIMATIONS ───────────────────────────────────────────────────── */
+@keyframes node-critical {
+  0%,100% { filter: drop-shadow(0 0 4px #ff4444); opacity: 1; }
+  50%      { filter: drop-shadow(0 0 14px #ff2200); opacity: 0.75; }
+}
+@keyframes node-stonewall {
+  0%,100% { filter: drop-shadow(0 0 8px #ff4400); opacity: 1; }
+  40%     { filter: drop-shadow(0 0 24px #ff2200); opacity: 0.5; }
+}
+@keyframes route-danger {
+  0%,100% { opacity: 1; }
+  50%     { opacity: 0.3; }
+}
+@keyframes sigma-pulse {
+  0%,100% { box-shadow: 0 0 0px transparent; }
+  50%     { box-shadow: var(--sigma-glow); }
+}
+
+/* ── CONVOY MOVE ANIMATION ───────────────────────────────────────────────────── */
+@keyframes convoy-move {
+  0%   { stroke-dashoffset: 100; }
+  100% { stroke-dashoffset: 0; }
+}
+
+/* ── STONEWALL BLINK ─────────────────────────────────────────────────────────── */
+@keyframes sw-critical {
+  0%,100% { background: rgba(255,50,0,0.15); border-color: rgba(255,50,0,0.6); }
+  50%     { background: rgba(255,50,0,0.35); border-color: rgba(255,50,0,0.9); }
+}

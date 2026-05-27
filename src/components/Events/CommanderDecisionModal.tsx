@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useGameStore } from '../../store/gameStore'
+import AudioEngine from '../../engine/AudioEngine'
 
 // ── WORST OPTION SELECTOR ─────────────────────────────────────────────────────
 function getWorstOption(options: any[]): any {
@@ -62,11 +63,28 @@ export default function CommanderDecisionModal({ event, onResolved }: Props) {
     }, 1200)
   }, [worst, event, applyEventResponse])
 
+  // Audio on modal open
+  useEffect(() => {
+    AudioEngine.resume()
+    AudioEngine.playAlert(event.priority === 'FLASH' ? 'FLASH' : 'PRIORITY')
+  }, [])
+
+  // Countdown ticks
+  useEffect(() => {
+    if (timeLeft > 0 && timeLeft <= TIMER_SECONDS && !selected && !resolving) {
+      AudioEngine.playTick(timeLeft <= 3)
+    }
+  }, [timeLeft])
+
   const handleSelect = useCallback((option: any) => {
     if (selected || resolving) return
     clearInterval(intervalRef.current)
     setSelected(option)
     setResolving(true)
+    // Audio feedback on selection
+    if (option.isDoctrineCorrect || option.risk === 'LOW') AudioEngine.playDecisionCorrect()
+    else if (option.risk === 'CRITICAL') AudioEngine.playDecisionWrong()
+    else AudioEngine.playConvoyDispatch()
     setTimeout(() => {
       if (applyEventResponse) applyEventResponse(event.id, option)
       setTimeout(() => { onResolved() }, 1200)

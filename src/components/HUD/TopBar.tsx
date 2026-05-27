@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react'
 import { useGameStore } from '../../store/gameStore'
+import AudioEngine from '../../engine/AudioEngine'
 
 function pad(n: number) { return String(n).padStart(2,'0') }
 
@@ -55,13 +56,32 @@ export default function TopBar() {
   useEffect(() => {
     startAutoAdvance()
     if (startTacticalFeed) startTacticalFeed()
-    return () => stopAutoAdvance()
+    // Start ambient on first user interaction
+    const startAudio = () => { AudioEngine.startAmbient(); document.removeEventListener('click', startAudio); document.removeEventListener('touchstart', startAudio) }
+    document.addEventListener('click', startAudio)
+    document.addEventListener('touchstart', startAudio)
+    return () => { stopAutoAdvance(); document.removeEventListener('click', startAudio); document.removeEventListener('touchstart', startAudio) }
   }, [])
+
+  // Track sigma changes for ambient stress audio
+  useEffect(() => { AudioEngine.setSigma(metrics.sigmaLevel) }, [metrics.sigmaLevel])
+
+  // Day advance sound
+  const prevDay = React.useRef(currentDay)
+  useEffect(() => {
+    if (currentDay > prevDay.current) { AudioEngine.playDayAdvance(); prevDay.current = currentDay }
+  }, [currentDay])
 
   const phase     = getCampaignPhase(currentDay)
   const isMobile  = window.innerWidth < 768
 
   const sigmaColor = metrics.sigmaLevel >= 3 ? '#00ff88' : metrics.sigmaLevel >= 2 ? '#ffaa00' : '#ff4444'
+
+  // Sigma-reactive UI theming — theater collapse changes the visual atmosphere
+  const sigmaLevel = metrics.sigmaLevel
+  const barBg      = sigmaLevel >= 3 ? '#07100a' : sigmaLevel >= 2 ? '#100a04' : '#100404'
+  const barBorder  = sigmaLevel >= 3 ? '#1a3a20' : sigmaLevel >= 2 ? '#3a2a10' : '#3a1010'
+  const barPulse   = sigmaLevel < 2 ? `0 0 20px ${sigmaLevel < 1.5 ? 'rgba(255,50,50,0.25)' : 'rgba(255,150,0,0.15)'}` : 'none'
   const rctColor   = metrics.avgRequestCycleTime <= 32 ? '#00ff88' : metrics.avgRequestCycleTime <= 48 ? '#ffaa00' : '#ff4444'
   const swColor    = metrics.stonewallRate < 2 ? '#00ff88' : metrics.stonewallRate < 10 ? '#ffaa00' : '#ff4444'
 
@@ -153,9 +173,9 @@ export default function TopBar() {
 
   return (
     <div style={{
-      background:'#07100a', borderBottom:'1px solid #1a3a20',
+      background:barBg, borderBottom:`1px solid ${barBorder}`,
       display:'flex', alignItems:'center', padding:'0 14px',
-      height:52, justifyContent:'space-between', gap:10,
+      height:52, justifyContent:'space-between', gap:10, boxShadow:barPulse,
     }}>
       <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
         <span style={{ fontFamily:'Barlow Condensed,sans-serif', fontWeight:700,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import AudioEngine from '../../engine/AudioEngine'
 import { useGameStore } from '../../store/gameStore'
 
 interface NodeData { id:string; name:string; type:string; unitId:string|null; wx:number; wy:number }
@@ -292,7 +293,7 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
                 }
                 const cls = ['CL I','CL II','CL III','CL IV','CL V','CL VIII','CL IX']
                 const desc = cargo.map((c:any)=>`${cls[c.supplyClass]}:${c.amount}%`).join(' ')
-                injectAction(`${assetType} DISPATCHED → ${node.name} | ${desc} | ETA D+${assetType==='AIR'||assetType==='HELO'?1:assetType==='SEA'?3:2}`)
+                AudioEngine.playConvoyDispatch(); injectAction(`${assetType} DISPATCHED → ${node.name} | ${desc} | ETA D+${assetType==='AIR'||assetType==='HELO'?1:assetType==='SEA'?3:2}`)
                 setAction(null)
               }}
               onCancel={()=>setAction(null)}

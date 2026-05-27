@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import AudioEngine from '../../engine/AudioEngine'
 import { useGameStore } from '../../store/gameStore'
 
 type Tab = 'UNITS' | 'SUPPLY' | 'FEED'
@@ -48,6 +49,14 @@ export default function MobileHUD() {
     )
   }
 
+  // Build urgent action list — units needing immediate resupply
+  const urgentUnits = unitList.filter((u:any) => {
+    if (u.status === 'STONEWALL' || u.status === 'DARK') return true
+    const minCrit = Math.min(u.supplyLevels?.CL_I||100, u.supplyLevels?.CL_III||100, u.supplyLevels?.CL_V||100)
+    const minRate = Math.max(1, Math.min(u.dailyConsumption?.CL_I||5, u.dailyConsumption?.CL_III||8, u.dailyConsumption?.CL_V||6))
+    return minCrit < 25 || (minCrit / minRate) < 3  // <25% OR <3 days remaining
+  })
+
   return (
     <div style={{
       display:'flex', flexDirection:'column',
@@ -55,7 +64,47 @@ export default function MobileHUD() {
       overflow:'hidden', height:'100%',
     }}>
 
+      {/* ── URGENT ACTIONS STRIP ── */}
+      {urgentUnits.length > 0 && (
+        <div style={{
+          flexShrink:0, background:'rgba(255,50,30,0.08)',
+          borderBottom:'1px solid rgba(255,68,0,0.4)',
+          padding:'6px 10px',
+          display:'flex', gap:8, overflowX:'auto',
+        }}>
+          <div style={{
+            flexShrink:0, display:'flex', alignItems:'center', gap:4,
+            fontFamily:'Share Tech Mono,monospace', fontSize:9, color:'#ff4400', letterSpacing:2,
+            animation:'sw-blink 1.2s infinite',
+          }}>
+            <span>⚠</span><span>ACTION REQ</span>
+          </div>
+          {urgentUnits.map((u:any) => {
+            const minCrit = Math.min(u.supplyLevels?.CL_I||100, u.supplyLevels?.CL_III||100, u.supplyLevels?.CL_V||100)
+            const isStonewall = u.status === 'STONEWALL'
+            const col = isStonewall ? '#ff2200' : '#ff8800'
+            return (
+              <div key={u.id} onClick={() => { setTab('UNITS') }} style={{
+                flexShrink:0, background:`${col}18`,
+                border:`1px solid ${col}60`, borderRadius:4,
+                padding:'4px 8px', cursor:'pointer',
+                display:'flex', alignItems:'center', gap:6,
+                WebkitTapHighlightColor:'transparent',
+              }}>
+                <div style={{ fontFamily:'Barlow Condensed,sans-serif', fontWeight:700, fontSize:12, color:col }}>
+                  {u.shortName}
+                </div>
+                <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9, color:`${col}cc` }}>
+                  {isStonewall ? 'STONEWALL' : `${Math.round(minCrit)}%`}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {/* ── DECISION ALERT ── */}
+      <style>{`@keyframes sw-blink{0%,100%{opacity:1}50%{opacity:0.3}}`}</style>
       {pendingDecision && (
         <div style={{
           padding:'6px 12px', background:'rgba(231,76,60,0.12)',
@@ -133,7 +182,7 @@ export default function MobileHUD() {
             </div>
 
             {/* Advance button */}
-            <button onClick={advanceTurn} style={{
+            <button onClick={()=>{ AudioEngine.resume(); AudioEngine.playDayAdvance(); advanceTurn() }} style={{
               width:'100%', marginTop:10, padding:'9px 0',
               background:'rgba(46,204,113,0.1)', border:'1px solid #27ae60',
               color:'#2ecc71', fontFamily:'Barlow Condensed,sans-serif',

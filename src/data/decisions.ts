@@ -372,3 +372,75 @@ export const DECISION_TYPES: Record<string, string> = {
   ECONOMY_OF_FORCE: 'Economy of Force',
   PRE_POSITION: 'Pre-positioning'
 };
+
+// ── GENERIC DECISIONS (apply to all campaigns by day range) ──────────────────
+// These fire for Campaigns 2-6 since they have no campaign-specific decisions.
+// Designed as universal logistics doctrine situations.
+
+export const GENERIC_DECISIONS: any[] = [
+  {
+    id:'GEN_D2', day:2,
+    title:'PUSH OR PULL — OPENING MOVE',
+    type:'PUSH_PULL',
+    situation:'Your forward units have not yet submitted formal requests. Supply exists at your depots. The question is whether you move it forward proactively or wait for requests to drive distribution.',
+    question:'How do you open your distribution posture?',
+    relatedUnits:['FOB1','FOB2'], relatedNodes:[], forceMultiplierBonus:10, optimalChoice:'A',
+    choices:[
+      { id:'A', text:'Push Class III and Class V forward now — before they ask', doctrineBasis:'ADP 4-0: Push for anticipated requirements', outcome:'OPTIMAL', doctrineNote:'Pre-empting demand prevents request cycle time violations. Supply in place before the fight is worth more than supply in transit during the fight.', effects:[{type:'READINESS',delta:10},{type:'RCT',delta:-6},{type:'SIGMA',delta:0.2}] },
+      { id:'B', text:'Push Class III only, hold Class V pending threat confirmation', doctrineBasis:'Partial push — acceptable hedge', outcome:'ACCEPTABLE', doctrineNote:'Reasonable risk management. Class V will likely be needed but partial push is defensible.', effects:[{type:'READINESS',delta:5},{type:'RCT',delta:-3},{type:'SIGMA',delta:0.1}] },
+      { id:'C', text:'Wait for formal requests — respect the pull system', doctrineBasis:'Pull misapplied in high-tempo scenario', outcome:'SUBOPTIMAL', doctrineNote:'Pull is correct for stable operations. Pre-combat buildup requires push. Waiting adds 24-48h delay.', effects:[{type:'RCT',delta:12},{type:'STONEWALL',delta:4}] },
+      { id:'D', text:'Hold everything at depot until the situation clarifies', doctrineBasis:'Economy of force misapplied', outcome:'FAILURE', doctrineNote:'Withholding supply during pre-combat buildup guarantees readiness failure when tempo increases.', effects:[{type:'READINESS',delta:-12},{type:'SIGMA',delta:-0.3},{type:'STONEWALL',delta:8}] },
+    ]
+  },
+  {
+    id:'GEN_D5', day:5,
+    title:'TWO UNITS NEED THE SAME CONVOY',
+    type:'PRIORITY',
+    situation:'You have one Class III convoy. Two units are below 40%. One is your main effort — the other is economy of force. You cannot fully resupply both today.',
+    question:'Who gets the convoy?',
+    relatedUnits:['FOB1','FOB2'], relatedNodes:[], forceMultiplierBonus:14, optimalChoice:'A',
+    choices:[
+      { id:'A', text:'Main effort gets full resupply — economy of force accepts degradation', doctrineBasis:'ATP 4-0: Priority of sustainment follows priority of effort', outcome:'OPTIMAL', doctrineNote:'Maneuver priority is doctrine. The economy of force unit accepts risk so the main effort can succeed.', effects:[{type:'READINESS',unitId:'FOB1',delta:20},{type:'READINESS',unitId:'FOB2',delta:-5},{type:'SIGMA',delta:0.2}] },
+      { id:'B', text:'Split the load equally between both units', doctrineBasis:'Equitable distribution — tactically sound but suboptimal', outcome:'ACCEPTABLE', doctrineNote:'Both units receive partial supply. Neither reaches full capability. Acceptable if priority is unclear.', effects:[{type:'READINESS',delta:8},{type:'RCT',delta:4}] },
+      { id:'C', text:'Economy of force gets the convoy — they are lower and will stonewall first', doctrineBasis:'Reactive triage — wrong priority framework', outcome:'SUBOPTIMAL', doctrineNote:'Supplying the weaker unit first sounds logical but violates mission priority doctrine. Main effort suffers.', effects:[{type:'READINESS',unitId:'FOB2',delta:18},{type:'READINESS',unitId:'FOB1',delta:-8}] },
+      { id:'D', text:'Request more assets from higher — escalate the shortage', doctrineBasis:'Escalation for time-sensitive tactical decision is not appropriate', outcome:'FAILURE', doctrineNote:'This decision is yours. Escalating costs 24 hours and leaves both units unsupplied.', effects:[{type:'RCT',delta:20},{type:'SIGMA',delta:-0.4},{type:'STONEWALL',delta:6}] },
+    ]
+  },
+  {
+    id:'GEN_D9', day:9,
+    title:'LOC INTERDICTION — REROUTE DECISION',
+    type:'LOC',
+    situation:'The primary MSR has been interdicted by enemy activity. You have two options: route via the alternate LOC (+2 day transit) or push through the primary with escort (+50% interdiction risk).',
+    question:'How do you keep supply moving?',
+    relatedUnits:['FOB1','FOB2'], relatedNodes:[], forceMultiplierBonus:12, optimalChoice:'A',
+    choices:[
+      { id:'A', text:'Reroute all convoys to the alternate LOC — accept longer transit, maintain security', doctrineBasis:'ADP 4-0: Security of LOCs before throughput speed', outcome:'OPTIMAL', doctrineNote:'Protecting convoys from interdiction is worth the extra 2 days. A destroyed convoy delivers nothing and costs everything.', effects:[{type:'RCT',delta:8},{type:'SIGMA',delta:0.1},{type:'STONEWALL',delta:-3}] },
+      { id:'B', text:'Split: priority loads via alternate, routine via primary with escort', doctrineBasis:'Risk-based routing — acceptable compromise', outcome:'ACCEPTABLE', doctrineNote:'Reasonable triage. Priority loads protected, some risk accepted on routine. Monitor for losses.', effects:[{type:'RCT',delta:5},{type:'SIGMA',delta:0.1}] },
+      { id:'C', text:'Push all convoys through primary MSR — speed is worth the risk', doctrineBasis:'Speed over security — misapplied when interdiction is confirmed', outcome:'SUBOPTIMAL', doctrineNote:'Moving fast on a compromised route loses convoys. One interdicted convoy sets resupply back further than 2 days.', effects:[{type:'RCT',delta:-2},{type:'STONEWALL',delta:5},{type:'SIGMA',delta:-0.2}] },
+      { id:'D', text:'Stop all convoy movement until route is cleared by security forces', doctrineBasis:'Full halt — only appropriate if enemy is in force, not skirmishers', outcome:'FAILURE', doctrineNote:'Stopping supply movement for 24+ hours while units are in contact guarantees stonewall.', effects:[{type:'RCT',delta:24},{type:'SIGMA',delta:-0.5},{type:'STONEWALL',delta:10}] },
+    ]
+  },
+  {
+    id:'GEN_D14', day:14,
+    title:'MID-CAMPAIGN READINESS TRIAGE',
+    type:'TRIAGE',
+    situation:'Day 14. Two units are in AMBER, one approaching RED. You have limited convoy capacity. You can fully restore one unit or partially restore all three.',
+    question:'How do you allocate remaining convoy capacity?',
+    relatedUnits:['FOB1','FOB2','FOB3'], relatedNodes:[], forceMultiplierBonus:12, optimalChoice:'B',
+    choices:[
+      { id:'A', text:'Full resupply of main effort unit — bring one to GREEN, accept degradation elsewhere', doctrineBasis:'Priority of sustainment: concentrate assets on decisive effort', outcome:'OPTIMAL', doctrineNote:'Getting one unit to GREEN enables decisive action. Distributing thin leaves everyone marginal.', effects:[{type:'READINESS',delta:20},{type:'SIGMA',delta:0.3}] },
+      { id:'B', text:'Partial resupply across all three — keep everyone out of RED', doctrineBasis:'Triage distribution — prevent cascading failure', outcome:'OPTIMAL', doctrineNote:'When no unit has decisive advantage, preventing simultaneous stonewall is the right call.', effects:[{type:'READINESS',delta:10},{type:'SIGMA',delta:0.2},{type:'RCT',delta:-4}] },
+      { id:'C', text:'Resupply the unit approaching RED first — crisis management', doctrineBasis:'Reactive triage — correct if stonewall is imminent', outcome:'ACCEPTABLE', doctrineNote:'Preventing stonewall is valid. But this is reactive, not proactive. Earlier action would have been better.', effects:[{type:'READINESS',delta:8},{type:'STONEWALL',delta:-2}] },
+      { id:'D', text:'Hold convoy capacity in reserve — wait for the situation to stabilize', doctrineBasis:'Reserve mentality in high-tempo operations — not appropriate', outcome:'FAILURE', doctrineNote:'Supply does not age better in the depot. Holding back when units are degrading accelerates the collapse.', effects:[{type:'READINESS',delta:-10},{type:'SIGMA',delta:-0.3},{type:'STONEWALL',delta:8}] },
+    ]
+  },
+]
+
+export function getDecisionsForScenario(scenarioId: string, day: number): any | null {
+  // Campaign 1 uses specific decisions
+  if (scenarioId === 'CAMPAIGN_1') {
+    return CAMPAIGN_1_DECISIONS.find(d => d.day === day) ?? null
+  }
+  // All other campaigns use generic decisions
+  return GENERIC_DECISIONS.find(d => d.day === day) ?? null
+}
