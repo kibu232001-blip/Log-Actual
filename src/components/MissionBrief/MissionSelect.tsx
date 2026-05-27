@@ -212,9 +212,9 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
     audio.play().catch(() => {})
     let vol = 0
     const fadeIn = setInterval(() => {
-      vol = Math.min(0.45, vol + 0.02)
+      vol = Math.min(0.22, vol + 0.01)
       audio.volume = vol
-      if (vol >= 0.45) clearInterval(fadeIn)
+      if (vol >= 0.22) clearInterval(fadeIn)
     }, 60)
     return () => {
       clearInterval(fadeIn)
