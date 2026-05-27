@@ -36,12 +36,15 @@ function useEventCoordLookup() {
   }
 }
 
-  const activeScenarioId = useGameStore(s => (s as any).activeScenarioId || 'CAMPAIGN_1')
-  // Use live scenario activity level instead of hardcoded default
-  const SCENARIO_ACTIVITY = ({'CAMPAIGN_1':0.35,'CAMPAIGN_2':0.55,'CAMPAIGN_3':0.50,'CAMPAIGN_4':0.15,'CAMPAIGN_5':0.40,'CAMPAIGN_6':0.60} as Record<string,number>)[activeScenarioId] ?? 0.45
+const ACTIVITY_BY_SCENARIO: Record<string,number> = {
+  CAMPAIGN_1:0.35, CAMPAIGN_2:0.55, CAMPAIGN_3:0.50,
+  CAMPAIGN_4:0.15, CAMPAIGN_5:0.40, CAMPAIGN_6:0.60,
+}
 
 export default function BattlefieldFeed() {
   const { currentDay, metrics, units } = useGameStore()
+  const activeScenarioId = useGameStore(s => (s as any).activeScenarioId || 'CAMPAIGN_1')
+  const SCENARIO_ACTIVITY = ACTIVITY_BY_SCENARIO[activeScenarioId] ?? 0.45
   const [events, setEvents]           = useState<BattlefieldEvent[]>([])
   const [expanded, setExpanded]       = useState<string | null>(null)
   const lastEnemyAttacks = useGameStore(s => (s as any).lastEnemyAttacks || [])
