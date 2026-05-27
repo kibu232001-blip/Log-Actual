@@ -265,16 +265,19 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
             <circle cx="26" cy="4" r="2" fill="white" opacity="0.9"/>
           </svg>
         </div>` 
-        : '<div style="width:16px;height:16px;border-radius:50%;background:' + c + ';border:2px solid rgba(0,0,0,0.6);box-shadow:0 0 10px ' + c + '80;cursor:pointer;"></div>'
+        : (() => {
+          const sz = 40
+          return `<div style="width:${sz}px;height:${sz+8}px;position:relative;cursor:pointer;animation:diamond-float 2.4s ease-in-out infinite;"><style>@keyframes diamond-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes diamond-pulse{0%{transform:translate(-50%,-50%) scale(0.6);opacity:0.8}100%{transform:translate(-50%,-50%) scale(1.8);opacity:0}}</style><div style="position:absolute;bottom:2px;left:50%;width:20px;height:6px;border-radius:50%;background:${c};transform:translate(-50%,-50%);animation:diamond-pulse 1.8s ease-out infinite;opacity:0.5;filter:blur(2px);"></div><svg width="${sz}" height="${sz}" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 4px 8px ${c}99)"><defs><linearGradient id="dg-top-${cl}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${c}" stop-opacity="1"/><stop offset="100%" stop-color="${c}" stop-opacity="0.6"/></linearGradient><linearGradient id="dg-left-${cl}" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="${c}" stop-opacity="0.9"/><stop offset="100%" stop-color="${c}" stop-opacity="0.5"/></linearGradient><linearGradient id="dg-right-${cl}" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="${c}" stop-opacity="0.4"/><stop offset="100%" stop-color="${c}" stop-opacity="0.2"/></linearGradient><linearGradient id="dg-bot-${cl}" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="${c}" stop-opacity="0.3"/><stop offset="100%" stop-color="${c}" stop-opacity="0.1"/></linearGradient></defs><polygon points="26,4 8,20 26,28" fill="url(#dg-top-${cl})"/><polygon points="26,4 44,20 26,28" fill="url(#dg-left-${cl})"/><polygon points="8,20 26,28 26,48" fill="url(#dg-right-${cl})"/><polygon points="44,20 26,28 26,48" fill="url(#dg-bot-${cl})"/><polygon points="26,4 8,20 26,28 44,20" fill="none" stroke="${c}" stroke-width="0.8" stroke-opacity="0.6"/><circle cx="26" cy="4" r="2" fill="white" opacity="0.9"/></svg></div>`
+        })()
       const icon = L.divIcon({
         className:'',
         html: diamondSvg,
-        iconSize: isMob ? [52,60] : [16,16],
-        iconAnchor: isMob ? [26,48] : [8,8],
+        iconSize: isMob ? [52,60] : [40,48],
+        iconAnchor: isMob ? [26,48] : [20,44],
       })
       L.marker([s.mapCenter[0], s.mapCenter[1]], { icon })
         .addTo(map)
-        .bindTooltip(s.operationName, { direction:'top', offset:[0, isMob ? -50 : -10], className:'map-tt' })
+        .bindTooltip(s.operationName, { direction:'top', offset:[0, isMob ? -50 : -44], className:'map-tt' })
         .on('click', (e) => { L.DomEvent.stopPropagation(e); setSel(s); setThtr(s.theater) })
     })
     return () => { map.remove(); mapInst.current = null }

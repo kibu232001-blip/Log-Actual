@@ -312,7 +312,7 @@ export default function TheaterMap({ onBack }: Props) {
   const cs=zoom>=10?20:zoom>=9?16:zoom>=8?13:zoom>=7?10:7
 
   return(
-    <div style={{flex:1,display:'flex',overflow:'hidden',position:'relative'}}>
+    <div style={{flex:1,display:'flex',overflow:'hidden',position:'relative',height:'100%'}}>
       <style>{MAP_CSS}</style>
       <div ref={svgRef} style={{flex:1,position:'relative',overflow:'hidden'}}>
         <div ref={mapRef} style={{position:'absolute',inset:0,zIndex:0}}/>
@@ -475,7 +475,7 @@ export default function TheaterMap({ onBack }: Props) {
         <WeatherOverlay/>
         <AttackAnimations mapRef={mapRef}/>
       </div>
-      <BattlefieldFeed/>
+      {window.innerWidth >= 768 && <BattlefieldFeed/>}
       <NewsFeedSystem />
     </div>
   )

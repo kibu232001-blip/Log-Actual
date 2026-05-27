@@ -68,12 +68,14 @@ export default function App() {
       <div style={{ position:'fixed', inset:0, display:'flex', flexDirection:'column',
         background:'#030a0e', color:'#c8e6c9', overflow:'hidden' }}>
         <TopBar />
-        {/* Map: fixed 46% of remaining viewport height */}
-        <div style={{ flex:'0 0 46vh', position:'relative', overflow:'hidden', minHeight:0 }}>
+        {/* Map: fills top portion */}
+        <div style={{ flex:'0 0 52vh', position:'relative', overflow:'hidden', minHeight:0 }}>
           <TheaterMap onBack={handleBackToSelect} />
         </div>
-        {/* Bottom panel: fills the rest */}
-        <MobileHUD />
+        {/* Bottom panel: fixed height, scrollable inside */}
+        <div style={{ flex:'1 1 0', minHeight:0, overflow:'hidden', display:'flex', flexDirection:'column' }}>
+          <MobileHUD />
+        </div>
         {showDecisionModal && <DoctrineDecisionModal />}
         {showResultCard    && <ResultCard />}
         {showAAR           && <CampaignAAR />}

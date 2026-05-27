@@ -52,7 +52,7 @@ export default function MobileHUD() {
     <div style={{
       display:'flex', flexDirection:'column',
       background:'#081408', borderTop:'1px solid #1a3a20',
-      overflow:'hidden', flex:1, minHeight:0,
+      overflow:'hidden', height:'100%',
     }}>
 
       {/* ── DECISION ALERT ── */}
