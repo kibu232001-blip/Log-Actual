@@ -130,61 +130,71 @@ export default function MobileHUD() {
       {/* ── CONTENT ── */}
       <div style={{ flex:1, overflowY:'auto', padding:'10px 12px' }}>
 
-        {tab === 'UNITS' && (
-          <div>
-            {unitList.map((u:any) => {
-              const c = getColor(u.readiness)
-              const isStonewall = u.status === 'STONEWALL'
-              const isDark = u.status === 'DARK'
-              return (
-                <div key={u.id} style={{
-                  display:'flex', alignItems:'center', gap:8, marginBottom:10,
-                  padding:'6px 8px', borderRadius:4,
-                  background: isStonewall ? 'rgba(255,68,0,0.08)' : isDark ? 'rgba(40,40,60,0.5)' : 'transparent',
-                  border: isStonewall ? '1px solid rgba(255,68,0,0.3)' : isDark ? '1px solid rgba(80,80,120,0.3)' : '1px solid transparent',
-                }}>
-                  <div style={{
-                    fontFamily:'Barlow Condensed,sans-serif', fontWeight:700,
-                    fontSize:14, color: isDark ? '#555' : '#c8e6c9', width:80, flexShrink:0,
-                  }}>{u.shortName}</div>
-                  <div style={{ flex:1, height:7, background:'#0d1f10', borderRadius:3, overflow:'hidden' }}>
-                    <div style={{ height:'100%', width:`${u.readiness}%`, background:c,
-                      borderRadius:3, transition:'width .3s' }}/>
+        {tab === 'UNITS' && (() => {
+          const executeAction = (useGameStore.getState() as any).executeCommanderAction
+          const [selId, setSelId] = React.useState<string|null>(urgentUnits[0]?.id || null)
+          const selUnit = selId ? unitList.find((u:any)=>u.id===selId) : null
+          const okUnits = unitList.filter((u:any)=>!urgentUnits.find((x:any)=>x.id===u.id))
+
+          return (
+            <div>
+              {urgentUnits.length > 0 ? (<>
+                {/* Crisis selector */}
+                <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#ff4400',letterSpacing:3,marginBottom:8}}>SELECT UNIT TO RESPOND</div>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+                  {urgentUnits.map((u:any)=>{
+                    const minC=Math.min(u.supplyLevels?.CL_I||100,u.supplyLevels?.CL_III||100,u.supplyLevels?.CL_V||100)
+                    const col=u.status==='STONEWALL'?'#ff2200':'#ff8800'
+                    const isSel=selId===u.id
+                    return(<button key={u.id} onClick={()=>{AudioEngine.resume();AudioEngine.playTick(true);setSelId(u.id)}} style={{padding:'6px 12px',borderRadius:4,cursor:'pointer',background:isSel?`${col}30`:'rgba(0,0,0,0.4)',border:`2px solid ${isSel?col:col+'50'}`,fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:13,color:isSel?col:`${col}90`,WebkitTapHighlightColor:'transparent'}}>
+                      {u.shortName}<span style={{marginLeft:6,fontSize:11}}>{Math.round(minC)}%</span>
+                    </button>)
+                  })}
+                </div>
+
+                {/* Action deck */}
+                {selUnit && (<div style={{borderRadius:4,border:'1px solid rgba(255,100,0,0.3)',overflow:'hidden',marginBottom:8}}>
+                  <div style={{padding:'6px 10px',background:'rgba(255,50,0,0.08)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <span style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:14,color:'#ff8800'}}>{selUnit.name}</span>
+                    <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:getColor(selUnit.readiness)}}>RDNS {Math.round(selUnit.readiness)}%</span>
                   </div>
-                  <div style={{
-                    fontFamily:'Share Tech Mono,monospace', fontSize:13, color:c,
-                    width:36, textAlign:'right', flexShrink:0,
-                  }}>{Math.round(u.readiness)}%</div>
-                  <div style={{
-                    width:7, height:7, borderRadius:'50%', background:c, flexShrink:0,
-                    boxShadow: isStonewall ? `0 0 6px ${c}` : 'none',
-                  }}/>
-                </div>
-              )
-            })}
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:8,background:'rgba(0,0,0,0.3)'}}>
+                    {[
+                      {type:'AIR_EMERGENCY',icon:'⚡',label:'AIR SORTIE',sub:'+40% CL III',col:'#00aaff'},
+                      {type:'LATERAL_EMERGENCY',icon:'↔',label:'LATERAL XFER',sub:'Best FOB →',col:'#ffaa00'},
+                      {type:'PRIORITY_PUSH',icon:'★',label:'SET PRIORITY',sub:'+8% RDNS',col:'#ff8800'},
+                    ].map((a:any)=>(<button key={a.type} onClick={()=>{AudioEngine.resume();AudioEngine.playAlert('PRIORITY');if(executeAction)executeAction({unitId:selUnit.id,actionType:a.type})}} style={{padding:'8px 4px',borderRadius:3,cursor:'pointer',background:`${a.col}12`,border:`1px solid ${a.col}50`,color:a.col,fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:12,lineHeight:1.3,textAlign:'center',WebkitTapHighlightColor:'transparent'}}>
+                      <div style={{fontSize:16,marginBottom:2}}>{a.icon}</div>{a.label}
+                      <div style={{fontSize:8,fontFamily:'Share Tech Mono,monospace',marginTop:3,opacity:0.7}}>{a.sub}</div>
+                    </button>))}
+                  </div>
+                </div>)}
 
-            {/* Metrics footer */}
-            <div style={{
-              marginTop:6, paddingTop:8, borderTop:'1px solid #1a3a20',
-              display:'flex', gap:0,
-            }}>
-              {[
-                { label:'SIGMA',  value:`${metrics.sigmaLevel.toFixed(1)}σ`,          color: metrics.sigmaLevel>=3?'#2ecc71':metrics.sigmaLevel>=2?'#f39c12':'#e74c3c' },
-                { label:'RCT',    value:`${metrics.avgRequestCycleTime}h`,             color: metrics.avgRequestCycleTime<=32?'#2ecc71':metrics.avgRequestCycleTime<=48?'#f39c12':'#e74c3c' },
-                { label:'S/W',    value:`${metrics.stonewallRate.toFixed(0)}%`,        color: metrics.stonewallRate<2?'#2ecc71':metrics.stonewallRate<10?'#f39c12':'#e74c3c' },
-                { label:'RDNS',   value:`${Math.round(metrics.avgReadiness??0)}%`,     color: (metrics.avgReadiness??0)>70?'#2ecc71':(metrics.avgReadiness??0)>50?'#f39c12':'#e74c3c' },
-              ].map(m => (
-                <div key={m.label} style={{ flex:1, textAlign:'center' }}>
-                  <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:8, color:'#2d5a32', letterSpacing:1 }}>{m.label}</div>
-                  <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:16, fontWeight:700, color:m.color }}>{m.value}</div>
+                {/* Non-critical compact list */}
+                {okUnits.length>0&&(<div style={{borderTop:'1px solid #1a3a20',paddingTop:6}}>
+                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:2,marginBottom:5}}>OTHER UNITS</div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:3}}>
+                    {okUnits.map((u:any)=>(<div key={u.id} style={{display:'flex',alignItems:'center',gap:5,padding:'3px 6px',background:'rgba(0,0,0,0.2)',borderRadius:3}}>
+                      <span style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:11,color:'#4a7a54',flex:1}}>{u.shortName}</span>
+                      <div style={{width:28,height:3,background:'#0d1f10',borderRadius:2,overflow:'hidden'}}><div style={{height:'100%',width:`${u.readiness}%`,background:getColor(u.readiness)}}/></div>
+                      <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:getColor(u.readiness),width:28,textAlign:'right'}}>{Math.round(u.readiness)}%</span>
+                    </div>))}
+                  </div>
+                </div>)}
+              </>) : (<>
+                {/* Theater nominal — compact 2-col grid */}
+                <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#00ff88',letterSpacing:2,marginBottom:8,textAlign:'center'}}>✓ THEATER NOMINAL</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4}}>
+                  {unitList.map((u:any)=>(<div key={u.id} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 8px',background:'rgba(0,0,0,0.2)',borderRadius:3,border:`1px solid ${getColor(u.readiness)}15`}}>
+                    <span style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:12,fontWeight:700,color:'#4a8a5a',flex:1}}>{u.shortName}</span>
+                    <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:getColor(u.readiness)}}>{Math.round(u.readiness)}%</span>
+                    <div style={{width:6,height:6,borderRadius:'50%',background:getColor(u.readiness)}}/>
+                  </div>))}
                 </div>
-              ))}
+              </>)}
             </div>
-
-            {/* Advance button */}
-
-          </div>
-        )}
+          )
+        })()}
 
         {tab === 'SUPPLY' && (
           <div>
