@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import AudioEngine from '../../engine/AudioEngine'
 import { useGameStore } from '../../store/gameStore'
+import { getTheaterNetwork } from '../../data/scenarioNodes'
 
 type Tab = 'UNITS' | 'SUPPLY' | 'FEED'
 
@@ -31,7 +32,6 @@ function FragoPanel({ selUnit, onClose }: { selUnit:any; onClose:()=>void }) {
   const isActive = existing?.active
 
   // Routes for selected asset type
-  const { getTheaterNetwork } = require('../../data/scenarioNodes')
   const theater = getTheaterNetwork(activeScenarioId)
   const routes = theater.locs
     .filter((l:any) => assetType==='AIR'||assetType==='HELO' ? l.type==='AIR' : l.type!=='AIR')
