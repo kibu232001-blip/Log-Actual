@@ -11,8 +11,7 @@ import { generateResponseOptions, ResponseOption } from '../engine/EventResponse
 import { calculateBurnRate, tempoFromDay, SCENARIO_ENVIRONMENT, BurnRateOutput } from '../data/MTOE'
 import { getUnitRoster } from '../data/unitRosters'
 import { getScenarioUnits } from '../data/scenarioUnits'
-import { getScenarioRoutes, getScenarioMeta, ScenarioRoute } from '../data/scenarioRoutes'
-import { getTheaterNetwork } from '../data/scenarioNodes'
+import { getScenarioMeta } from '../data/scenarioRoutes'
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function getStatus(r:number, strength?:number, streak?:number):UnitStatus {
