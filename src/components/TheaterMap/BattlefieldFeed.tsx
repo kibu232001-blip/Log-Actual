@@ -36,7 +36,9 @@ function useEventCoordLookup() {
   }
 }
 
-const SCENARIO_ACTIVITY = 0.45 // default; would come from scenario in full integration
+  const activeScenarioId = useGameStore(s => (s as any).activeScenarioId || 'CAMPAIGN_1')
+  // Use live scenario activity level instead of hardcoded default
+  const SCENARIO_ACTIVITY = ({'CAMPAIGN_1':0.35,'CAMPAIGN_2':0.55,'CAMPAIGN_3':0.50,'CAMPAIGN_4':0.15,'CAMPAIGN_5':0.40,'CAMPAIGN_6':0.60} as Record<string,number>)[activeScenarioId] ?? 0.45
 
 export default function BattlefieldFeed() {
   const { currentDay, metrics, units } = useGameStore()

@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { GameState, GameActions, UIState, TurnPhase, Unit, UnitStatus } from '../types/game'
 import { CAMPAIGN_1_DECISIONS } from '../data/decisions'
-import { CAMPAIGN_1_UNITS } from '../data/units'
 import { CAMPAIGN_1_NODES, CAMPAIGN_1_LOCS } from '../data/nodes'
 import { CommanderEvent, selectCommanderEvent } from '../data/Commanders'
 import {
@@ -11,6 +10,9 @@ import {
 import { generateResponseOptions, ResponseOption } from '../engine/EventResponseGenerator'
 import { calculateBurnRate, tempoFromDay, SCENARIO_ENVIRONMENT, BurnRateOutput } from '../data/MTOE'
 import { getUnitRoster } from '../data/unitRosters'
+import { getScenarioUnits } from '../data/scenarioUnits'
+import { getScenarioRoutes, getScenarioMeta, ScenarioRoute } from '../data/scenarioRoutes'
+import { getTheaterNetwork } from '../data/scenarioNodes'
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function getStatus(r:number, strength?:number, streak?:number):UnitStatus {
@@ -51,17 +53,6 @@ interface RealConvoy {
 }
 
 // Route definitions for auto-dispatch
-const AUTO_ROUTES = [
-  { from:'POE',   toUnit:'FOB3',      locId:'loc6',  travelDays:2, isAir:false, defaultClass:0 },
-  { from:'DEP_A', toUnit:'FOB3',      locId:'loc6',  travelDays:1, isAir:false, defaultClass:2 },
-  { from:'ASP',   toUnit:'FOB3',      locId:'loc6',  travelDays:1, isAir:false, defaultClass:4 },
-  { from:'DEP_B', toUnit:'FOB2',      locId:'loc7',  travelDays:2, isAir:false, defaultClass:2 },
-  { from:'AFD',   toUnit:'FOB1',      locId:'loc10', travelDays:1, isAir:true,  defaultClass:4 },
-  { from:'DEP_B', toUnit:'FOB1',      locId:'loc11', travelDays:2, isAir:false, defaultClass:0 },
-  { from:'AFD',   toUnit:'AVN_BDE',   locId:'loc9',  travelDays:1, isAir:true,  defaultClass:2 },
-  { from:'DEP_B', toUnit:'III_CORPS', locId:'loc7',  travelDays:2, isAir:false, defaultClass:4 },
-]
-
 function findMostNeededClass(unit:Unit):number {
   const lvls = [
     unit.supplyLevels.CL_I, unit.supplyLevels.CL_II, unit.supplyLevels.CL_III,
@@ -72,19 +63,21 @@ function findMostNeededClass(unit:Unit):number {
   return minIdx
 }
 
-function buildInitialState(): GameState & { realConvoys:RealConvoy[]; pendingCommanderEvent:CommanderEvent|null; firedCommanderEventIds:string[]; enemyAOs:Array<{id:string;lat:number;lng:number;radius:number;label:string;type:string;expiresDay:number}> } {
-  const units  = CAMPAIGN_1_UNITS.reduce((a,u)=>({...a,[u.id]:u}),{} as Record<string,Unit>)
-  const nodes  = CAMPAIGN_1_NODES.reduce((a,n)=>({...a,[n.id]:n}),{})
-  const locs   = CAMPAIGN_1_LOCS.reduce((a,l)=>({...a,[l.id]:l}),{})
+function buildInitialState(scenarioId='CAMPAIGN_1'): GameState & { realConvoys:RealConvoy[]; pendingCommanderEvent:CommanderEvent|null; firedCommanderEventIds:string[]; enemyAOs:Array<{id:string;lat:number;lng:number;radius:number;label:string;type:string;expiresDay:number}> } {
+  const unitList  = getScenarioUnits(scenarioId)
+  const units     = unitList.reduce((a,u)=>({...a,[u.id]:u}),{} as Record<string,Unit>)
+  const nodes     = CAMPAIGN_1_NODES.reduce((a,n)=>({...a,[n.id]:n}),{})
+  const locs      = CAMPAIGN_1_LOCS.reduce((a,l)=>({...a,[l.id]:l}),{})
+  const meta      = getScenarioMeta(scenarioId)
   const sw=calcSW(units),rct=calcRCT(units),sigma=calcSigma(sw,rct),avg=calcAvg(units)
   return {
-    campaignId:'CAMPAIGN_1', campaignName:'European Theater — Operation Iron Sustain',
-    currentDay:1, totalDays:30, currentPhase:'INTELLIGENCE',
+    campaignId:scenarioId, campaignName:scenarioId,
+    currentDay:1, totalDays:meta.totalDays, currentPhase:'INTELLIGENCE',
     units, nodes, locs, convoys:[], requestQueue:[],
     pendingDecision:null, completedDecisions:[],
     metrics:{ avgReadiness:avg, stonewallRate:sw, avgRequestCycleTime:rct, sigmaLevel:sigma, doctrineAccuracy:0, forceMultiplierTotal:0 },
     metricsHistory:[], weather:'CLEAR', isGameOver:false, isPaused:false, showAAR:false,
-    realConvoys:[], mapFlyTarget:null as {lat:number;lng:number;zoom:number}|null, failureReason:null as string|null, pendingDecisionEvent:null as any, daysSinceLastAction:0, totalDecisionsMade:0, pendingCommanderEvent:null, firedCommanderEventIds:[], enemyAOs:[], enemyIntel:createInitialIntel(), lastEnemyAttacks:[], activeScenarioId:'CAMPAIGN_1', appliedBattlefieldEvents:[] as any[],
+    realConvoys:[], mapFlyTarget:null as {lat:number;lng:number;zoom:number}|null, failureReason:null as string|null, pendingDecisionEvent:null as any, daysSinceLastAction:0, totalDecisionsMade:0, pendingCommanderEvent:null, firedCommanderEventIds:[], enemyAOs:[], enemyIntel:createInitialIntel(), lastEnemyAttacks:[], activeScenarioId:scenarioId, appliedBattlefieldEvents:[] as any[],
   }
 }
 
@@ -262,13 +255,33 @@ export const useGameStore = create<Store>((set,get)=>({
     let newConvoys=[...(s.realConvoys||[])]
     let updatedAOs=(s.enemyAOs||[]).filter((ao:any)=>ao.expiresDay>nextDay)
 
+    // ── LOAD SCENARIO META FOR THIS DAY ──
+    const meta = getScenarioMeta(s.activeScenarioId || 'CAMPAIGN_1')
+
     if(advancing){
-      // ── CONSUME SUPPLY ──
+      // ── CONSUME SUPPLY (with scenario modifiers) ──
       updatedUnits=Object.fromEntries(
         Object.entries(s.units).map(([id,unit])=>{
           const nl={...unit.supplyLevels}
           ;(Object.keys(unit.dailyConsumption) as Array<keyof typeof unit.dailyConsumption>)
-            .forEach(cls=>{ nl[cls]=Math.max(0,nl[cls]-unit.dailyConsumption[cls]) })
+            .forEach(cls=>{
+              let amount = unit.dailyConsumption[cls]
+              // C3 DESERT LINES: heat multiplier — already baked into dailyConsumption
+              // but apply additional phase escalation in later days
+              if (meta.heatMultiplier && nextDay > 12) {
+                if (cls === 'CL_I')   amount = amount * 1.1  // extra heat surge day 12+
+                if (cls === 'CL_III') amount = amount * 1.1
+              }
+              // C5 PACIFIC PUSH: after Day 10 threat escalation increases consumption
+              if (meta.dayGatedThreat && nextDay > meta.dayGatedThreat) {
+                if (cls === 'CL_V' || cls === 'CL_III') amount = amount * 1.25
+              }
+              // C6 ISLAND HOP: sortie attrition increases consumption variance
+              if (meta.airOnlyLogistics && Math.random() < 0.15) {
+                amount = amount * 1.3  // 15% chance of elevated demand any day
+              }
+              nl[cls]=Math.max(0,nl[cls]-amount)
+            })
           const crit=[nl.CL_I,nl.CL_III,nl.CL_V],minLvl=Math.min(...crit)
           const newR=Math.max(0,unit.readiness-(minLvl<20?15:minLvl<40?5:0))
           return [id,{...unit,supplyLevels:nl,readiness:newR,status:getStatus(newR)}]
@@ -315,7 +328,7 @@ export const useGameStore = create<Store>((set,get)=>({
 
       // Compute enemy attacks for this day
       const activeLOCIds = Object.keys(s.locs || {})
-      const enemyAttacks = computeEnemyActions(nextDay, updatedUnits, intel, activeLOCIds)
+      const enemyAttacks = computeEnemyActions(nextDay, updatedUnits, intel, activeLOCIds, meta.enemyActivityLevel)
 
       // Apply all attack effects
       enemyAttacks.forEach(attack => {
@@ -646,5 +659,5 @@ export const useGameStore = create<Store>((set,get)=>({
   setWeather:(w:string)=>set({weather:w as any}),
   dismissResult:()=>set({showResultCard:false,lastDecisionResult:null}),
   pauseGame:()=>set({isPaused:true}),resumeGame:()=>set({isPaused:false}),
-  resetGame:(scenarioId?:string)=>{get().stopAutoAdvance();set({...buildInitialState(),...INITIAL_UI,autoAdvanceEnabled:false,secondsToNextDay:120,_timerInterval:null,enemyIntel:createInitialIntel(),lastEnemyAttacks:[],activeScenarioId:scenarioId||'CAMPAIGN_1',appliedBattlefieldEvents:[]})},
+  resetGame:(scenarioId?:string)=>{const sid=scenarioId||'CAMPAIGN_1';get().stopAutoAdvance();set({...buildInitialState(sid),...INITIAL_UI,autoAdvanceEnabled:false,secondsToNextDay:120,_timerInterval:null,enemyIntel:createInitialIntel(),lastEnemyAttacks:[],activeScenarioId:sid,appliedBattlefieldEvents:[]})},
 }))

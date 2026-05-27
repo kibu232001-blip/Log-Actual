@@ -94,10 +94,10 @@ export function computeEnemyActions(
   units: Record<string, Unit>,
   intel: EnemyIntelligence,
   activeLOCs: string[],
+  enemyActivityLevel = 0.35,
 ): EnemyAttack[] {
   const phase = getCampaignPhase(day)
   const attacks: EnemyAttack[] = []
-
   // Update adaptation level
   intel.adaptationLevel = Math.min(5, Math.floor(day / 6))
 
@@ -114,14 +114,16 @@ export function computeEnemyActions(
     return geo !== undefined
   })
 
+  // Activity level scales attack frequency: 0.15 (low) → 0.60 (high)
+  const actMult = 0.5 + (enemyActivityLevel * 1.2)  // 0.68 to 1.22 multiplier
+
   // ── PHASE 1: PROBE ────────────────────────────────────────────────────────
   if (phase === 1) {
-    // Phase 1: at least one probe every day from day 2 onward
     if (day >= 2) {
       const t1 = pickLOC(activeLOCs, intel, day)
       if (t1) attacks.push(buildIEDAttack(t1, day, 'LOW'))
     }
-    if (day >= 4 && Math.random() < 0.55) {
+    if (day >= 4 && Math.random() < 0.55 * actMult) {
       const t2 = pickLOC(activeLOCs.filter(l => l !== attacks[0]?.targetLOC), intel, day)
       if (t2) attacks.push(buildIEDAttack(t2, day, 'MEDIUM'))
     }
@@ -130,7 +132,6 @@ export function computeEnemyActions(
 
   // ── PHASE 2: PATTERN EXPLOITATION ────────────────────────────────────────
   if (phase === 2) {
-    // Phase 2: guaranteed 2 attacks minimum, sometimes 3
     const primaryLOC = getMostUsedLOC(intel) || pickLOC(activeLOCs, intel, day)
     if (primaryLOC) attacks.push(buildAmbushAttack(primaryLOC, day, 'MEDIUM'))
 
