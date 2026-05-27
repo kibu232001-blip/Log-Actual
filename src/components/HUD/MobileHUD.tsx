@@ -211,7 +211,8 @@ export default function MobileHUD() {
                 NO CONVOYS IN TRANSIT — DISPATCH FROM MAP
               </div>
             )}
-            {inTransit.map((c:any) => {
+            {inTransit.map((c:any, idx:number) => {
+              if (!c) return null
               const daysLeft = Math.max(0, c.travelDays - (currentDay - c.departedDay))
               const pct = Math.min(100, Math.round(c.departedDay ? (currentDay - c.departedDay) / c.travelDays * 100 : 0))
               const col = c.assetType==='AIR'||c.assetType==='HELO' ? '#00aaff' : c.assetType==='SEA' ? '#4488ff' : '#00ff88'
@@ -255,12 +256,15 @@ export default function MobileHUD() {
                 NO ACTIVE EVENTS
               </div>
             )}
-            {feedEvents.slice(0,12).map((ev:any) => {
+            {feedEvents.slice(0,12).map((ev:any, idx:number) => {
+              if (!ev) return null
               const isFlash    = ev.priority === 'FLASH'
               const isPriority = ev.priority === 'PRIORITY'
               const accent = isFlash ? '#ff4444' : isPriority ? '#ff8800' : '#2ecc71'
+              const title = ev.title || ev.report?.slice(0,40) || 'INTEL'
+              const body  = (ev.report || ev.text || '').slice(0,120)
               return (
-                <div key={ev.id} style={{
+                <div key={ev.id || idx} style={{
                   marginBottom:8, padding:'8px 10px', borderRadius:4,
                   background: isFlash ? 'rgba(255,50,50,.08)' : 'rgba(0,20,8,.5)',
                   border:`1px solid ${accent}30`,
@@ -268,16 +272,19 @@ export default function MobileHUD() {
                   <div style={{ display:'flex', justifyContent:'space-between',
                     alignItems:'center', marginBottom:4 }}>
                     <span style={{ fontFamily:'Barlow Condensed,sans-serif', fontWeight:700,
-                      fontSize:13, color:accent }}>{ev.title}</span>
+                      fontSize:13, color:accent, flex:1, marginRight:6 }}>{title}</span>
                     <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:8,
-                      color:accent, border:`1px solid ${accent}60`, padding:'1px 5px', borderRadius:2 }}>
-                      {ev.priority}
+                      color:accent, border:`1px solid ${accent}60`, padding:'1px 5px',
+                      borderRadius:2, flexShrink:0 }}>
+                      {ev.priority || 'ROUTINE'}
                     </span>
                   </div>
-                  <div style={{ fontFamily:'Barlow,sans-serif', fontSize:11,
-                    color:'#4a7a54', lineHeight:1.4 }}>
-                    {(ev.report||'').slice(0,120)}{(ev.report?.length??0)>120?'…':''}
-                  </div>
+                  {body.length > 0 && (
+                    <div style={{ fontFamily:'Barlow,sans-serif', fontSize:11,
+                      color:'#4a7a54', lineHeight:1.4 }}>
+                      {body}{(ev.report?.length??0)>120?'…':''}
+                    </div>
+                  )}
                 </div>
               )
             })}

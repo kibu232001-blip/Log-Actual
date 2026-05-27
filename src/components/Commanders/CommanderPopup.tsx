@@ -49,15 +49,11 @@ export default function CommanderPopup({ event, onAction, onDismiss }: Props) {
   }, [lineIdx, event.lines.length])
 
   const handleDismiss = useCallback(() => {
-    // Fly map to the event's map marker location if present
     if (event.mapMarker) {
-      useGameStore.getState().setMapFlyTarget({
-        lat: event.mapMarker.lat,
-        lng: event.mapMarker.lng,
-        zoom: 7,
-      })
+      const store = useGameStore.getState() as any
+      if (store.flyToLocation) store.flyToLocation(event.mapMarker.lat, event.mapMarker.lng, 7)
     }
-    handleDismiss()
+    onDismiss(event)
   }, [event, onDismiss])
 
   useEffect(() => { const t=setTimeout(()=>setAllDone(true),10000); return()=>clearTimeout(t) }, [])
