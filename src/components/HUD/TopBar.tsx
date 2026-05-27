@@ -163,9 +163,11 @@ export default function TopBar() {
           }}>SKIP</button>
         </div>
 
-        {/* Row 2: Live metrics strip */}
+        {/* Row 2: Compact metrics strip - slim on mobile */}
         <div style={{
-          display:'flex', padding:'4px 10px', gap:0,
+          display:'flex', padding:'2px 10px', gap:0,
+          borderTop:'1px solid #0d1f10',
+          background:'rgba(0,0,0,0.2)',
         }}>
           {[
             { label:'σ',    value:`${metrics.sigmaLevel.toFixed(1)}`,        color:sigmaColor },
@@ -176,11 +178,11 @@ export default function TopBar() {
             <div key={m.label} style={{
               flex:1, textAlign:'center',
               borderLeft: i>0 ? '1px solid #0d1f10' : 'none',
-              padding:'0 4px',
+              padding:'1px 4px',
             }}>
-              <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:8,
+              <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:7,
                 color:'#2d5a32', letterSpacing:1 }}>{m.label} </span>
-              <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:13,
+              <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:11,
                 fontWeight:700, color:m.color }}>{m.value}</span>
             </div>
           ))}

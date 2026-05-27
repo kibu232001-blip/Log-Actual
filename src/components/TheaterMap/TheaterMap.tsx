@@ -442,7 +442,8 @@ export default function TheaterMap({ onBack }: Props) {
             )
           })}
 
-          {/* HUD */}
+          {/* HUD — desktop only, TopBar covers this on mobile */}
+          {window.innerWidth >= 768 && (
           <g fontFamily="Share Tech Mono,monospace">
             <rect x="10" y="10" width="340" height="48" rx="3" fill="rgba(3,10,6,.9)" stroke="#1a3a20" strokeWidth="1"/>
             <text x="22" y="30" fill="#00ff88" fontSize="14" fontWeight="700" fontFamily="Barlow Condensed,sans-serif" letterSpacing="2">LOG ACTUAL — {activeScenarioId.replace('CAMPAIGN_','C').replace('_',' ')} THEATER</text>
@@ -455,6 +456,7 @@ export default function TheaterMap({ onBack }: Props) {
             <text x="296" y="50" fill="#1a5a3a" fontSize="12">RCT </text>
             <text x="324" y="50" fill={metrics.avgRequestCycleTime<=32?'#00ff88':metrics.avgRequestCycleTime<=48?'#ffaa00':'#ff4444'} fontSize="12">{metrics.avgRequestCycleTime}h</text>
           </g>
+          )}
         </svg>
 
         {/* Moving assets */}

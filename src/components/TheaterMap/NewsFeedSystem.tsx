@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import ReactDOM from 'react-dom'
 import { useGameStore } from '../../store/gameStore'
 import AudioEngine from '../../engine/AudioEngine'
 
@@ -108,9 +109,10 @@ function ToastStack({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id:str
 // ── LAYER 3: FLASH INTERRUPT (FLASH) ─────────────────────────────────────────
 export function FlashModal({ event, onDismiss }: { event: any; onDismiss: ()=>void }) {
   const advanceTurn = useGameStore(s => s.advanceTurn)
-  return (
+
+  const modal = (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 800,
+      position: 'fixed', inset: 0, zIndex: 9998,
       background: 'rgba(2,6,3,0.92)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       padding: '20px 16px',
@@ -185,6 +187,8 @@ export function FlashModal({ event, onDismiss }: { event: any; onDismiss: ()=>vo
       </div>
     </div>
   )
+  // Portal to document.body — escapes ALL parent transforms/overflow/containment
+  return ReactDOM.createPortal(modal, document.body)
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
