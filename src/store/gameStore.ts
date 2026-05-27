@@ -109,6 +109,12 @@ function buildInitialState(scenarioId='CAMPAIGN_1'): GameState & { realConvoys:R
     difficulty: 'STANDARD' as 'EASY'|'STANDARD'|'HARD'|'SFC_CHALLENGE',
     airSorties: 4,
     convoyStats: { dispatched:0, delivered:0, interdicted:0 },
+    // Standing FRAGO orders — auto-executed each day advance
+    // key: destinationUnitId, value: { sourceUnitId, routeId, cargo, assetType, active }
+    standingOrders: {} as Record<string, {
+      sourceUnitId:string; routeId:string; assetType:string;
+      cargo:Array<{supplyClass:number;amount:number}>; active:boolean; label:string
+    }>,
     realConvoys:[], mapFlyTarget:null as {lat:number;lng:number;zoom:number}|null, failureReason:null as string|null, pendingDecisionEvent:null as any, daysSinceLastAction:0, totalDecisionsMade:0, pendingCommanderEvent:null, firedCommanderEventIds:[], enemyAOs:[], enemyIntel:createInitialIntel(), lastEnemyAttacks:[], activeScenarioId:scenarioId, appliedBattlefieldEvents:day1Events as any[], locInterdictions:({} as Record<string,number>),
   }
 }
@@ -564,7 +570,67 @@ export const useGameStore = create<Store>((set,get)=>({
       const sw2b        = calcSW(updatedUnits)
       const sigma2b     = calcSigma(sw2b, calcRCT(updatedUnits))
 
-      // Failure conditions — threshold tightens with difficulty
+      // ── EXECUTE STANDING FRAGO ORDERS ──────────────────────────────────────
+      // Auto-dispatch standing orders each day — no commander input needed
+      const standingOrders = (s as any).standingOrders || {}
+      Object.entries(standingOrders).forEach(([destId, order]:any) => {
+        if (!order.active) return
+        const sourceUnit = updatedUnits[order.sourceUnitId]
+        const destUnit = updatedUnits[destId]
+        if (!sourceUnit || !destUnit) return
+
+        // Check if source has enough supply to fill the order
+        const totalCargo = order.cargo.reduce((sum:number, c:any) => sum + c.amount, 0)
+        const classKeys = ['CL_I','CL_II','CL_III','CL_IV','CL_V','CL_VIII','CL_IX']
+        const canFill = order.cargo.every((c:any) => {
+          const key = classKeys[c.supplyClass]
+          return (sourceUnit.supplyLevels[key]||0) >= c.amount
+        })
+
+        if (!canFill) {
+          // Source is too depleted — suspend this order, fire warning
+          newFeedEvents.push({
+            id:`FRAGO_SUSPEND_${destId}_${nextDay}`, type:'LOGREP', priority:'PRIORITY',
+            title:`FRAGO SUSPENDED — INSUFFICIENT STOCK AT SOURCE`,
+            report:`Standing LOGPAC to ${destUnit.name} suspended. Source unit ${sourceUnit.name} has insufficient supply to fill order. Restock source or modify FRAGO.`,
+            effects:[], affectedAssets:[destId, order.sourceUnitId], acknowledged:false, mitigated:false,
+          })
+          return
+        }
+
+        // Deduct from source immediately
+        const newSourceLvls = { ...sourceUnit.supplyLevels }
+        order.cargo.forEach((c:any) => {
+          const key = classKeys[c.supplyClass]
+          newSourceLvls[key] = Math.max(0, (newSourceLvls[key]||0) - c.amount)
+        })
+        const srcR = Math.round(Math.min(100, (newSourceLvls.CL_I+newSourceLvls.CL_III+newSourceLvls.CL_V)/3))
+        updatedUnits[order.sourceUnitId] = { ...sourceUnit, supplyLevels:newSourceLvls, readiness:srcR, status:getStatus(srcR) }
+
+        // Create convoy en route
+        const isAir = order.assetType === 'AIR' || order.assetType === 'HELO'
+        const wMult = currentWeather==='STORM'?1.5:currentWeather==='FOG'?1.2:currentWeather==='RAIN'?1.1:1.0
+        const base = isAir?1:order.assetType==='SEA'?3:totalCargo>60?3:2
+        const travelDays = Math.max(1, Math.round(base * wMult))
+
+        newConvoys.push({
+          id:`FRAGO_CONVOY_${destId}_${nextDay}`,
+          fromNodeId:order.sourceUnitId, toUnitId:destId,
+          locId:order.routeId,
+          cargo:order.cargo, departedDay:nextDay,
+          travelDays, isAir, assetType:order.assetType,
+          status:'EN_ROUTE', progress:0, isStandingOrder:true,
+        })
+
+        const CLS = ['CL I','CL II','CL III','CL IV','CL V','CL VIII','CL IX']
+        const cargoStr = order.cargo.map((c:any) => `${CLS[c.supplyClass]}:${c.amount}%`).join(' ')
+        newFeedEvents.push({
+          id:`FRAGO_DISPATCH_${destId}_${nextDay}`, type:'LOGREP', priority:'ROUTINE',
+          title:`AUTO-LOGPAC DISPATCHED → ${destUnit.name}`,
+          report:`Standing FRAGO executed. ${order.assetType} convoy departed ${sourceUnit.name} via ${order.routeId}. Cargo: ${cargoStr}. ETA D+${travelDays}.`,
+          effects:[], affectedAssets:[destId], acknowledged:true, mitigated:true,
+        })
+      })
       const swStreakLimit = diff2==='SFC_CHALLENGE' ? 2 : diff2==='HARD' ? 3 : 4
       const catastrophicCollapse = swUnits / totalUnits >= 0.30
       const sigmaCollapse        = sigma2b < 1.0
@@ -1085,6 +1151,30 @@ export const useGameStore = create<Store>((set,get)=>({
   clearDecisionEvent:()=>set({pendingDecisionEvent:null}),
   setDifficulty:(d:'EASY'|'STANDARD'|'HARD'|'SFC_CHALLENGE')=>set({difficulty:d} as any),
   setWeather:(w:string)=>set({weather:w as any}),
+
+  // ── STANDING FRAGO ORDERS ──────────────────────────────────────────────────
+  setStandingOrder:(destUnitId:string, order:{
+    sourceUnitId:string; routeId:string; assetType:string;
+    cargo:Array<{supplyClass:number;amount:number}>; label:string
+  })=>set(s=>{
+    const orders = { ...(s as any).standingOrders, [destUnitId]: { ...order, active:true } }
+    const feedEvent = {
+      id:`FRAGO_SET_${Date.now()}`, type:'LOGREP', priority:'ROUTINE',
+      title:`FRAGO ACTIVE — STANDING LOGPAC → ${destUnitId.replace(/_/g,' ')}`,
+      report:`Sustainment FRAGO established. ${order.label}. Auto-resupply will execute each day advance via ${order.routeId} from ${order.sourceUnitId.replace(/_/g,' ')}. Cancel with CANCEL FRAGO.`,
+      effects:[], affectedAssets:[destUnitId], acknowledged:true, mitigated:true,
+    }
+    return {
+      standingOrders: orders,
+      appliedBattlefieldEvents:[feedEvent,...((s as any).appliedBattlefieldEvents||[])].slice(0,60),
+    } as any
+  }),
+
+  cancelStandingOrder:(destUnitId:string)=>set(s=>{
+    const orders = { ...(s as any).standingOrders }
+    if (orders[destUnitId]) orders[destUnitId] = { ...orders[destUnitId], active:false }
+    return { standingOrders: orders } as any
+  }),
   dismissResult:()=>set({showResultCard:false,lastDecisionResult:null}),
 
   // ── EMERGENCY COMMANDER ACTIONS ─────────────────────────────────────────────

@@ -4,6 +4,143 @@ import { useGameStore } from '../../store/gameStore'
 
 type Tab = 'UNITS' | 'SUPPLY' | 'FEED'
 
+const CLS_LABELS = ['CL I','CL II','CL III','CL IV','CL V','CL VIII','CL IX']
+const CLS_KEYS   = ['CL_I','CL_II','CL_III','CL_IV','CL_V','CL_VIII','CL_IX']
+
+function FragoPanel({ selUnit, onClose }: { selUnit:any; onClose:()=>void }) {
+  const allUnits       = useGameStore(s => Object.values(s.units) as any[])
+  const standingOrders = useGameStore(s => (s as any).standingOrders || {})
+  const setStandingOrder   = useGameStore(s => (s as any).setStandingOrder)
+  const cancelStandingOrder= useGameStore(s => (s as any).cancelStandingOrder)
+  const activeScenarioId   = useGameStore(s => (s as any).activeScenarioId || 'CAMPAIGN_1')
+  const storeLocs  = useGameStore(s => s.locs) as any
+
+  const existing = standingOrders[selUnit.id]
+  const [amounts, setAmounts] = React.useState<number[]>(
+    existing?.cargo ? CLS_LABELS.map((_,i) => existing.cargo.find((c:any)=>c.supplyClass===i)?.amount||0) : [0,0,0,0,0,0,0]
+  )
+  const [sourceId, setSourceId]   = React.useState<string>(existing?.sourceUnitId || '')
+  const [assetType, setAssetType] = React.useState<string>(existing?.assetType || 'GROUND')
+  const [routeId, setRouteId]     = React.useState<string>(existing?.routeId || '')
+
+  const sourceOptions = allUnits.filter((u:any) =>
+    u.id !== selUnit.id && u.status !== 'DARK' &&
+    Math.max(u.supplyLevels?.CL_I||0, u.supplyLevels?.CL_III||0, u.supplyLevels?.CL_V||0) > 5
+  )
+  const totalPerDay = amounts.reduce((a,b)=>a+b,0)
+  const isActive = existing?.active
+
+  // Routes for selected asset type
+  const { getTheaterNetwork } = require('../../data/scenarioNodes')
+  const theater = getTheaterNetwork(activeScenarioId)
+  const routes = theater.locs
+    .filter((l:any) => assetType==='AIR'||assetType==='HELO' ? l.type==='AIR' : l.type!=='AIR')
+    .map((l:any) => ({ ...l, status: storeLocs?.[l.id]?.status || l.status }))
+    .slice(0,5)
+
+  React.useEffect(() => {
+    if (!sourceId && sourceOptions[0]) setSourceId(sourceOptions[0].id)
+    if (!routeId && routes[0]) setRouteId(routes[0].id)
+  }, [])
+
+  const handleSet = () => {
+    const cargo = amounts.map((amt,i)=>({supplyClass:i,amount:amt})).filter(c=>c.amount>0)
+    if (!cargo.length || !sourceId || !routeId) return
+    const src = allUnits.find((u:any)=>u.id===sourceId)
+    const label = `${assetType} LOGPAC: ${cargo.map(c=>`${CLS_LABELS[c.supplyClass]}:${c.amount}%`).join(' ')} from ${src?.shortName||sourceId} via ${routeId}`
+    setStandingOrder(selUnit.id, { sourceUnitId:sourceId, routeId, assetType, cargo, label })
+    AudioEngine.playConvoyDispatch()
+    onClose()
+  }
+
+  return (
+    <div style={{borderTop:'1px solid rgba(204,136,255,0.25)',background:'rgba(60,0,100,0.15)',padding:'10px'}}>
+      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#aa66dd',letterSpacing:3,marginBottom:8}}>
+        FRAGO — STANDING LOGPAC → {selUnit.shortName||selUnit.name}
+        <span style={{marginLeft:8,color:'#555',fontSize:7}}>ADP 4-0 §3-12 SUSTAINMENT PLANNING</span>
+      </div>
+
+      {isActive && (
+        <div style={{padding:'5px 8px',marginBottom:8,background:'rgba(0,200,80,0.08)',border:'1px solid #00ff8840',borderRadius:3,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#00ff88'}}>✓ STANDING ORDER ACTIVE — AUTO-EXECUTES DAILY</span>
+          <button onClick={()=>{cancelStandingOrder(selUnit.id);AudioEngine.playTick(false);onClose()}}
+            style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#ff4444',background:'transparent',border:'1px solid #ff444440',padding:'2px 6px',borderRadius:2,cursor:'pointer'}}>
+            CANCEL FRAGO
+          </button>
+        </div>
+      )}
+
+      {/* Source unit */}
+      <div style={{marginBottom:8}}>
+        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:2,marginBottom:4}}>① SOURCE UNIT (DAILY DONOR)</div>
+        <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+          {sourceOptions.map((u:any)=>{
+            const minS=Math.round(Math.min(u.supplyLevels?.CL_I||100,u.supplyLevels?.CL_III||100,u.supplyLevels?.CL_V||100))
+            const col=minS>50?'#00ff88':minS>25?'#ffaa00':'#ff6644'
+            const isSel=sourceId===u.id
+            return(<button key={u.id} onClick={()=>setSourceId(u.id)} style={{padding:'4px 8px',borderRadius:3,cursor:'pointer',background:isSel?`${col}20`:'rgba(0,0,0,0.3)',border:`${isSel?2:1}px solid ${isSel?col:'#1a3a20'}`,fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:12,color:isSel?col:'#4a7a54',WebkitTapHighlightColor:'transparent'}}>
+              {u.shortName||u.name} <span style={{fontSize:10}}>{minS}%</span>
+            </button>)
+          })}
+        </div>
+      </div>
+
+      {/* Asset type */}
+      <div style={{marginBottom:8}}>
+        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:2,marginBottom:4}}>② TRANSPORT MODE</div>
+        <div style={{display:'flex',gap:4}}>
+          {[{id:'GROUND',icon:'🚛'},{id:'AIR',icon:'✈'},{id:'HELO',icon:'🚁'},{id:'SEA',icon:'⛴'}].map(a=>(
+            <button key={a.id} onClick={()=>setAssetType(a.id)} style={{flex:1,padding:'4px 2px',borderRadius:3,cursor:'pointer',background:assetType===a.id?'rgba(0,255,136,0.15)':'rgba(0,0,0,0.3)',border:`${assetType===a.id?2:1}px solid ${assetType===a.id?'#00ff88':'#1a3a20'}`,color:assetType===a.id?'#00ff88':'#4a7a54',fontFamily:'Barlow Condensed,sans-serif',fontSize:11,WebkitTapHighlightColor:'transparent'}}>
+              {a.icon} {a.id}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Route */}
+      <div style={{marginBottom:8}}>
+        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:2,marginBottom:4}}>③ DESIGNATED ROUTE</div>
+        <div style={{display:'flex',flexDirection:'column',gap:3}}>
+          {routes.slice(0,3).map((r:any)=>{
+            const sc=r.status==='INTERDICTED'?'#ff2200':r.status==='CONTESTED'?'#ff8800':'#2d5a32'
+            const isSel=routeId===r.id
+            return(<button key={r.id} onClick={()=>setRouteId(r.id)} style={{display:'flex',justifyContent:'space-between',padding:'4px 8px',borderRadius:3,cursor:'pointer',background:isSel?`${sc}15`:'rgba(0,0,0,0.2)',border:`${isSel?2:1}px solid ${isSel?sc:'#1a3a20'}`,WebkitTapHighlightColor:'transparent'}}>
+              <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:isSel?sc:'#4a7a54'}}>{r.id.toUpperCase()} · {r.cargo}</span>
+              <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:sc}}>{r.status==='INTERDICTED'?'⛔ BLOCKED':r.status==='CONTESTED'?'⚠':r.threat+' THREAT'}</span>
+            </button>)
+          })}
+        </div>
+      </div>
+
+      {/* Daily cargo amounts */}
+      <div style={{marginBottom:10}}>
+        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:2,marginBottom:6}}>
+          ④ DAILY CARGO ALLOCATION — TOTAL: {totalPerDay}% PER DAY
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:4}}>
+          {[0,2,4,8].map(i=>( // CL I, III, V, IX — the critical four
+            <div key={i} style={{display:'grid',gridTemplateColumns:'50px 1fr 35px',gap:6,alignItems:'center'}}>
+              <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:'#4a7a54'}}>{CLS_LABELS[i]}</span>
+              <input type="range" min={0} max={40} step={5} value={amounts[i]}
+                onChange={e=>{ const v=[...amounts]; v[i]=+e.target.value; setAmounts(v) }}
+                style={{accentColor:'#00ff88',cursor:'pointer'}}/>
+              <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:amounts[i]>0?'#00ff88':'#2d5a32',textAlign:'right'}}>{amounts[i]}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Commit */}
+      <div style={{display:'flex',gap:6}}>
+        <button onClick={handleSet} disabled={totalPerDay===0||!sourceId||!routeId} style={{flex:1,padding:'8px',borderRadius:3,cursor:totalPerDay>0&&sourceId&&routeId?'pointer':'not-allowed',background:totalPerDay>0&&sourceId?'rgba(0,255,136,0.15)':'rgba(0,0,0,0.3)',border:`1px solid ${totalPerDay>0&&sourceId?'#00ff88':'#1a3a20'}`,color:totalPerDay>0&&sourceId?'#00ff88':'#2d5a32',fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:12,letterSpacing:2}}>
+          {isActive ? '📋 UPDATE FRAGO' : '📋 ISSUE FRAGO'}
+        </button>
+        <button onClick={onClose} style={{padding:'8px 10px',borderRadius:3,cursor:'pointer',background:'transparent',border:'1px solid #1a3a20',color:'#2d5a32',fontFamily:'Barlow Condensed,sans-serif',fontSize:11}}>✕</button>
+      </div>
+    </div>
+  )
+}
+
 export default function MobileHUD() {
   const [tab, setTab] = useState<Tab>('UNITS')
   const units      = useGameStore(s => s.units)
@@ -138,6 +275,7 @@ export default function MobileHUD() {
         {tab === 'UNITS' && (() => {
           const executeAction = (useGameStore.getState() as any).executeCommanderAction
           const [selId, setSelId] = React.useState<string|null>(urgentUnits[0]?.id || null)
+          const [fragoOpen, setFragoOpen] = React.useState(false)
           const selUnit = selId ? unitList.find((u:any)=>u.id===selId) : null
           const okUnits = unitList.filter((u:any)=>!urgentUnits.find((x:any)=>x.id===u.id))
 
@@ -151,7 +289,7 @@ export default function MobileHUD() {
                     const minC=Math.min(u.supplyLevels?.CL_I||100,u.supplyLevels?.CL_III||100,u.supplyLevels?.CL_V||100)
                     const col=u.status==='STONEWALL'?'#ff2200':'#ff8800'
                     const isSel=selId===u.id
-                    return(<button key={u.id} onClick={()=>{AudioEngine.resume();AudioEngine.playTick(true);setSelId(u.id)}} style={{padding:'6px 12px',borderRadius:4,cursor:'pointer',background:isSel?`${col}30`:'rgba(0,0,0,0.4)',border:`2px solid ${isSel?col:col+'50'}`,fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:13,color:isSel?col:`${col}90`,WebkitTapHighlightColor:'transparent'}}>
+                    return(<button key={u.id} onClick={()=>{AudioEngine.resume();AudioEngine.playTick(true);setSelId(u.id);setFragoOpen(false)}} style={{padding:'6px 12px',borderRadius:4,cursor:'pointer',background:isSel?`${col}30`:'rgba(0,0,0,0.4)',border:`2px solid ${isSel?col:col+'50'}`,fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:13,color:isSel?col:`${col}90`,WebkitTapHighlightColor:'transparent'}}>
                       {u.shortName}<span style={{marginLeft:6,fontSize:11}}>{Math.round(minC)}%</span>
                     </button>)
                   })}
@@ -166,13 +304,31 @@ export default function MobileHUD() {
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:8,background:'rgba(0,0,0,0.3)'}}>
                     {[
                       {type:'AIR_EMERGENCY',icon:'⚡',label:'AIR SORTIE',sub:'+40% CL III',col:'#00aaff'},
-                      {type:'LATERAL_EMERGENCY',icon:'↔',label:'LATERAL XFER',sub:'Best FOB →',col:'#ffaa00'},
-                      {type:'PRIORITY_PUSH',icon:'★',label:'SET PRIORITY',sub:'+8% RDNS',col:'#ff8800'},
-                    ].map((a:any)=>(<button key={a.type} onClick={()=>{AudioEngine.resume();AudioEngine.playAlert('PRIORITY');if(executeAction)executeAction({unitId:selUnit.id,actionType:a.type})}} style={{padding:'8px 4px',borderRadius:3,cursor:'pointer',background:`${a.col}12`,border:`1px solid ${a.col}50`,color:a.col,fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:12,lineHeight:1.3,textAlign:'center',WebkitTapHighlightColor:'transparent'}}>
-                      <div style={{fontSize:16,marginBottom:2}}>{a.icon}</div>{a.label}
-                      <div style={{fontSize:8,fontFamily:'Share Tech Mono,monospace',marginTop:3,opacity:0.7}}>{a.sub}</div>
-                    </button>))}
+                      {type:'FRAGO',        icon:'📋',label:'ISSUE FRAGO',sub:'Doctrinal order',col:'#cc88ff'},
+                      {type:'PRIORITY_PUSH',icon:'★', label:'SET PRIORITY',sub:'+8% RDNS',col:'#ff8800'},
+                    ].map((a:any)=>(
+                      <button key={a.type} onClick={()=>{
+                        AudioEngine.resume()
+                        if(a.type==='FRAGO'){
+                          AudioEngine.playTick(true)
+                          setFragoOpen(fo=>!fo)
+                        } else {
+                          AudioEngine.playAlert('PRIORITY')
+                          if(executeAction) executeAction({unitId:selUnit.id,actionType:a.type})
+                        }
+                      }} style={{padding:'8px 4px',borderRadius:3,cursor:'pointer',
+                        background: a.type==='FRAGO'&&fragoOpen ? `${a.col}25` : `${a.col}12`,
+                        border:`1px solid ${a.type==='FRAGO'&&fragoOpen ? a.col : a.col+'50'}`,
+                        color:a.col,fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:12,
+                        lineHeight:1.3,textAlign:'center',WebkitTapHighlightColor:'transparent'}}>
+                        <div style={{fontSize:16,marginBottom:2}}>{a.icon}</div>{a.label}
+                        <div style={{fontSize:8,fontFamily:'Share Tech Mono,monospace',marginTop:3,opacity:0.7}}>{a.sub}</div>
+                      </button>
+                    ))}
                   </div>
+
+                  {/* FRAGO PANEL — standing LOGPAC order configurator */}
+                  {fragoOpen && selUnit && (<FragoPanel selUnit={selUnit} onClose={()=>setFragoOpen(false)} />)}
                 </div>)}
 
                 {/* Non-critical compact list */}
