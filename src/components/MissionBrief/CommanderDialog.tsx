@@ -14,14 +14,23 @@ function Portrait({ style, color }: { style: string; color: string }) {
   return <div style={{ width:72, height:72 }} dangerouslySetInnerHTML={{ __html:svg }}/>
 }
 
-function TypeWriter({ text, speed=22, onDone }: { text:string; speed?:number; onDone:()=>void }) {
+function TypeWriter({ text, speed=32, onDone }: { text:string; speed?:number; onDone:()=>void }) {
   const [shown, setShown] = useState('')
+  const [finished, setFinished] = useState(false)
   useEffect(() => {
-    setShown(''); let i=0
-    const t = setInterval(()=>{ i++; setShown(text.slice(0,i)); if(i>=text.length){clearInterval(t);setTimeout(onDone,600)} }, speed)
+    setShown(''); setFinished(false); let i=0
+    const t = setInterval(()=>{
+      i++; setShown(text.slice(0,i))
+      if(i>=text.length){ clearInterval(t); setFinished(true) }
+    }, speed)
     return ()=>clearInterval(t)
   }, [text])
-  return <span>{shown}<span style={{animation:'dlg-blink .7s infinite'}}>▮</span></span>
+  return (
+    <span onClick={() => { if(finished) onDone() }}>
+      {shown}
+      {!finished && <span style={{animation:'dlg-blink .7s infinite'}}>▮</span>}
+    </span>
+  )
 }
 
 function speakLine(text: string, char: BriefingCharacter) {
@@ -137,9 +146,15 @@ export default function CommanderDialog({ team, activeTab, selectedMemberId, onC
             </div>
 
             {/* Speech bubble */}
-            <div style={{ background:`${c}07`, border:`1px solid ${c}18`,
-              borderRadius:'0 8px 8px 8px', padding:'12px 14px', position:'relative',
-              boxShadow:`0 0 20px ${c}08` }}>
+            <div
+              onClick={() => { if(done) return; advance() }}
+              style={{
+                background:`${c}07`, border:`1px solid ${c}18`,
+                borderRadius:'0 8px 8px 8px', padding:'12px 14px', position:'relative',
+                boxShadow:`0 0 20px ${c}08`,
+                cursor: done ? 'default' : 'pointer',
+                WebkitTapHighlightColor:'transparent',
+              }}>
               <div style={{ position:'absolute', left:-7, top:12, width:0, height:0,
                 borderTop:'6px solid transparent', borderBottom:'6px solid transparent',
                 borderRight:`7px solid ${c}18` }}/>
@@ -162,9 +177,22 @@ export default function CommanderDialog({ team, activeTab, selectedMemberId, onC
                   {lineIdx+1}/{section.lines.length}
                 </span>
               </div>
+
+              {/* Tap to continue prompt */}
+              {!done && (
+                <div style={{
+                  marginTop:8, display:'flex', alignItems:'center', gap:6,
+                  fontFamily:'Share Tech Mono,monospace', fontSize:9,
+                  color:`${c}55`, letterSpacing:2,
+                  animation:'dlg-blink 1.2s ease-in-out infinite',
+                }}>
+                  <span>▶</span><span>TAP TO CONTINUE</span>
+                </div>
+              )}
+
             </div>
 
-            {/* Controls once done */}
+            {/* Controls once all lines done */}
             {done && (
               <div style={{ display:'flex', gap:8, marginTop:10 }}>
                 {lineIdx > 0 && (
@@ -181,6 +209,11 @@ export default function CommanderDialog({ team, activeTab, selectedMemberId, onC
                   fontFamily:'Barlow Condensed,sans-serif', fontSize:12,
                   WebkitTapHighlightColor:'transparent',
                 }}>↺ REPLAY</button>
+                <div style={{
+                  marginLeft:'auto', display:'flex', alignItems:'center', gap:4,
+                  fontFamily:'Share Tech Mono,monospace', fontSize:9,
+                  color:`${c}50`, letterSpacing:2,
+                }}>◼ END OF SECTION</div>
               </div>
             )}
           </div>
