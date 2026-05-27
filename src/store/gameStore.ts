@@ -952,6 +952,86 @@ export const useGameStore = create<Store>((set,get)=>({
   clearDecisionEvent:()=>set({pendingDecisionEvent:null}),
   setWeather:(w:string)=>set({weather:w as any}),
   dismissResult:()=>set({showResultCard:false,lastDecisionResult:null}),
+
+  // ── EMERGENCY COMMANDER ACTIONS ─────────────────────────────────────────────
+  // Immediate effect (bypasses convoy travel time) — high cost, instant result
+  executeCommanderAction:(params:{
+    unitId:string; actionType:'AIR_EMERGENCY'|'LATERAL_EMERGENCY'|'PRIORITY_PUSH'
+    sourceUnitId?:string
+  })=>set(s=>{
+    const { unitId, actionType, sourceUnitId } = params
+    const unit = (s.units as any)[unitId]
+    if (!unit) return {}
+
+    let updatedUnits = { ...s.units }
+    let feedMsg = ''
+
+    if (actionType === 'AIR_EMERGENCY') {
+      // Emergency air sortie: +40% CL III, +25% CL V, +20% CL I, -5% from other FOBs (cost)
+      const critSupply = {
+        ...unit.supplyLevels,
+        CL_I:   Math.min(100, (unit.supplyLevels.CL_I   || 0) + 20),
+        CL_III: Math.min(100, (unit.supplyLevels.CL_III || 0) + 40),
+        CL_V:   Math.min(100, (unit.supplyLevels.CL_V   || 0) + 25),
+        CL_IX:  Math.min(100, (unit.supplyLevels.CL_IX  || 0) + 15),
+      }
+      const newR = Math.min(100, unit.readiness + 18)
+      ;(updatedUnits as any)[unitId] = {
+        ...unit, supplyLevels:critSupply,
+        readiness:newR, status:(newR>80?'GREEN':newR>50?'AMBER':newR>25?'RED':'STONEWALL'),
+        stonewallStreak: 0,
+      }
+      feedMsg = `⚡ EMERGENCY AIR SORTIE → ${unit.name || unitId} | CL III +40% CL V +25% | READINESS RECOVERING`
+
+    } else if (actionType === 'LATERAL_EMERGENCY') {
+      // Take from best-supplied unit, give to crisis unit
+      const donor = sourceUnitId
+        ? (s.units as any)[sourceUnitId]
+        : Object.values(s.units).reduce((best:any, u:any) =>
+            (u.readiness > (best?.readiness||0) && u.id !== unitId ? u : best), null)
+      if (!donor) return {}
+      const transferred = {
+        ...unit.supplyLevels,
+        CL_I:   Math.min(100, (unit.supplyLevels.CL_I||0) + 20),
+        CL_III: Math.min(100, (unit.supplyLevels.CL_III||0) + 25),
+        CL_V:   Math.min(100, (unit.supplyLevels.CL_V||0) + 15),
+      }
+      const donorDepleted = {
+        ...donor.supplyLevels,
+        CL_I:   Math.max(0, (donor.supplyLevels.CL_I||0) - 20),
+        CL_III: Math.max(0, (donor.supplyLevels.CL_III||0) - 25),
+        CL_V:   Math.max(0, (donor.supplyLevels.CL_V||0) - 15),
+      }
+      const newR = Math.min(100, unit.readiness + 12)
+      ;(updatedUnits as any)[unitId] = { ...unit, supplyLevels:transferred, readiness:newR }
+      ;(updatedUnits as any)[donor.id] = { ...donor, supplyLevels:donorDepleted }
+      feedMsg = `↔ LATERAL TRANSFER → ${unit.name} from ${donor.name || donor.id} | SUPPLY BALANCED`
+
+    } else if (actionType === 'PRIORITY_PUSH') {
+      // Designate as priority — 24h RCT benefit and small immediate readiness bump
+      const newR = Math.min(100, unit.readiness + 8)
+      ;(updatedUnits as any)[unitId] = { ...unit, readiness:newR, isPriority:true }
+      feedMsg = `⚡ PRIORITY DESIGNATED → ${unit.name} | ALL REQUESTS ELEVATED | RCT -12h`
+    }
+
+    const feedEvent = {
+      id:`CMD_ACT_${Date.now()}`, type:'LOGREP', priority:'PRIORITY',
+      title:feedMsg, report:feedMsg,
+      effects:[], affectedAssets:[unitId],
+      acknowledged:true, mitigated:true,
+    }
+
+    // Metrics recalc
+    const sw = Object.values(updatedUnits).filter((u:any)=>u.status==='STONEWALL').length / Object.values(updatedUnits).length * 100
+    const rct = 24+((100-Object.values(updatedUnits).reduce((a:number,u:any)=>a+u.readiness,0)/Object.values(updatedUnits).length)/100)*48
+
+    return {
+      units: updatedUnits,
+      daysSinceLastAction: 0,
+      metrics: { ...(s as any).metrics, stonewallRate:Math.round(sw), avgRequestCycleTime:Math.round(rct) },
+      appliedBattlefieldEvents:[feedEvent,...((s as any).appliedBattlefieldEvents||[])].slice(0,60),
+    }
+  }),
   pauseGame:()=>set({isPaused:true}),resumeGame:()=>set({isPaused:false}),
   resetGame:(scenarioId?:string)=>{const sid=scenarioId||'CAMPAIGN_1';get().stopAutoAdvance();set({...buildInitialState(sid),...INITIAL_UI,autoAdvanceEnabled:false,secondsToNextDay:120,_timerInterval:null,enemyIntel:createInitialIntel(),lastEnemyAttacks:[],activeScenarioId:sid,appliedBattlefieldEvents:[]})},
 }))

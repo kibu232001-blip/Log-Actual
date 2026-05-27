@@ -108,6 +108,7 @@ function ConvoyDispatch({ node, unit, currentDay, onDispatch, onCancel }: Dispat
 
 export default function NodeDetailPanel({ node, onClose }: Props) {
   const { units, currentDay } = useGameStore()
+  const executeCommanderAction = useGameStore(s => (s as any).executeCommanderAction)
   const unit = node.unitId ? (Object.values(units) as any[]).find(u=>u.id===node.unitId) : null
   const [action, setAction] = useState<ActionMode>(null)
   const [convoyClass, setConvoyClass] = useState(2)
@@ -115,7 +116,22 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
   const [lateralFrom, setLateralFrom] = useState('')
   const [injected, setInjected] = useState<string[]>([])
   const [flashIdxs, setFlashIdxs] = useState<number[]>([])
+  const [emergencyFired, setEmergencyFired] = useState<string|null>(null)
   const prevLevels = React.useRef<number[]>([])
+
+  const isCrisis = unit && (unit.status === 'STONEWALL' || unit.status === 'RED')
+  const minSupply = unit ? Math.min(unit.supplyLevels?.CL_I||100, unit.supplyLevels?.CL_III||100, unit.supplyLevels?.CL_V||100) : 100
+  const isEmergency = isCrisis && minSupply < 20
+
+  const fireEmergency = (type: 'AIR_EMERGENCY'|'LATERAL_EMERGENCY'|'PRIORITY_PUSH') => {
+    if (!unit || !executeCommanderAction) return
+    AudioEngine.resume()
+    if (type === 'AIR_EMERGENCY') AudioEngine.playAlert('FLASH')
+    else AudioEngine.playConvoyDispatch()
+    executeCommanderAction({ unitId: unit.id, actionType: type })
+    setEmergencyFired(type)
+    setTimeout(() => setEmergencyFired(null), 3000)
+  }
 
   const supply: number[] = unit ? CLS.map(c => unit.supplyLevels?.[c.key] ?? 0) : []
   const consumption: number[] = unit ? CLS.map(c => unit.dailyConsumption?.[c.key] ?? 0) : []
@@ -202,7 +218,47 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
 
       <div style={{overflowY:'auto',flex:1}}>
 
-        {/* MAINTENANCE STATUS */}
+        {/* ── EMERGENCY ACTION STRIP — shown when unit is in crisis ── */}
+        {isEmergency && (
+          <div style={{
+            padding:'10px 14px', background:'rgba(255,30,0,0.08)',
+            borderBottom:'2px solid rgba(255,50,0,0.5)',
+            animation:'sw-critical 1.2s ease infinite',
+          }}>
+            <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#ff4444',letterSpacing:3,marginBottom:8,animation:'sw-blink 0.8s infinite'}}>
+              ◉ CRISIS — IMMEDIATE ACTION REQUIRED
+            </div>
+            {emergencyFired && (
+              <div style={{padding:'6px 10px',marginBottom:8,background:'rgba(0,255,136,0.1)',border:'1px solid #00ff8840',borderRadius:3,fontFamily:'Share Tech Mono,monospace',fontSize:10,color:'#00ff88',letterSpacing:1}}>
+                ✓ ACTION EXECUTING — THEATER NOTIFIED
+              </div>
+            )}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:5}}>
+              {[
+                { type:'AIR_EMERGENCY' as const,   label:'⚡ EMERGENCY\nAIR SORTIE',  col:'#00aaff', sub:'+40% CL III\nImmediate' },
+                { type:'LATERAL_EMERGENCY' as const, label:'↔ LATERAL\nTRANSFER',     col:'#ffaa00', sub:'+25% CL III\nFrom best FOB' },
+                { type:'PRIORITY_PUSH' as const,   label:'★ SET\nPRIORITY',    col:'#ff8800', sub:'+8% Readiness\nRCT -12h' },
+              ].map(a=>(
+                <button key={a.type}
+                  onClick={()=>fireEmergency(a.type)}
+                  disabled={!!emergencyFired}
+                  style={{
+                    background:`${a.col}15`, border:`1px solid ${a.col}60`,
+                    color: emergencyFired ? '#1a4a3a' : a.col,
+                    padding:'8px 4px', borderRadius:3, cursor: emergencyFired ? 'not-allowed' : 'pointer',
+                    fontFamily:'Barlow Condensed,sans-serif', fontWeight:700, fontSize:11,
+                    letterSpacing:0.5, lineHeight:1.3, whiteSpace:'pre-line',
+                    textAlign:'center', WebkitTapHighlightColor:'transparent',
+                    transition:'all .15s',
+                  }}
+                >
+                  {a.label}
+                  <div style={{fontSize:9,fontFamily:'Share Tech Mono,monospace',marginTop:3,opacity:0.7,whiteSpace:'pre-line'}}>{a.sub}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {maint&&(
           <div style={{padding:'10px 14px',borderBottom:'1px solid rgba(255,255,255,.05)'}}>
             <div style={{fontSize:10,letterSpacing:3,color:'#1a5a3a',marginBottom:8,fontFamily:'Share Tech Mono,monospace'}}>MAINTENANCE STATUS // ERR</div>
