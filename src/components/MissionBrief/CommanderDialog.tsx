@@ -46,9 +46,10 @@ interface Props {
   team: BriefingTeam
   activeTab: string
   onClose?: () => void
+  scenarioId?: string
 }
 
-export default function CommanderDialog({ team, activeTab, onClose }: Props) {
+export default function CommanderDialog({ team, activeTab, onClose, scenarioId }: Props) {
   const section: BriefingSection | undefined = team.sections.find(s => s.tab === activeTab)
   const char: BriefingCharacter | undefined  = section ? team.characters.find(c => c.id === section.speakerId) : undefined
 

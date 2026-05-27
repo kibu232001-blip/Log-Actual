@@ -13,6 +13,7 @@ import ResultCard from './components/Events/ResultCard'
 import CampaignAAR from './components/Campaign/CampaignAAR'
 import CommanderPopup from './components/Commanders/CommanderPopup'
 import CommanderDecisionModal from './components/Events/CommanderDecisionModal'
+import MobileHUD from './components/HUD/MobileHUD'
 import { useGameStore } from './store/gameStore'
 
 type Screen = 'CINEMATIC' | 'SPLASH' | 'MISSION_SELECT' | 'MISSION_BRIEF' | 'DEPLOYING' | 'GAME'

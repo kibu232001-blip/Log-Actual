@@ -74,6 +74,7 @@ export default function MissionBrief({ scenario, onProceed, onBack }: Props) {
         team={getBriefingTeam(scenario.id)}
         activeTab={activeTab}
         onClose={() => { setDialogDone(true); setShowDialog(false) }}
+        onDeploy={() => { setDialogDone(true); setShowDialog(false); onProceed() }}
       />
     )
   }

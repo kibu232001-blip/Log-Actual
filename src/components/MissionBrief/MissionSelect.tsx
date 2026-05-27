@@ -28,6 +28,66 @@ const MAP_CSS = `
   .map-tt.leaflet-tooltip::before { border-top-color:#2d5a32!important; }
 `
 
+// Mobile retractable campaign list
+function MobilePanel({ selected, scenarios, onSelect, onProceed, onBack }: any) {
+  const [collapsed, setCollapsed] = React.useState(false)
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:10,pointerEvents:'none'}}>
+      {/* Collapse toggle */}
+      <button
+        onClick={()=>setCollapsed(c=>!c)}
+        style={{position:'absolute',bottom: collapsed ? 16 : '72%',left:'50%',transform:'translateX(-50%)',
+          zIndex:20,pointerEvents:'all',
+          background:'rgba(5,15,8,.95)',border:'1px solid #00ff88',color:'#00ff88',
+          fontFamily:'Share Tech Mono,monospace',fontSize:11,letterSpacing:2,
+          padding:'6px 18px',borderRadius:20,cursor:'pointer',
+          transition:'bottom .3s ease',
+        }}>
+        {collapsed ? '▲ SHOW OPERATIONS' : '▼ HIDE MAP'}
+      </button>
+
+      {/* Panel */}
+      <div style={{
+        position:'absolute',bottom:0,left:0,right:0,
+        height: collapsed ? '56px' : '72%',
+        background:'rgba(5,12,7,.96)',
+        borderTop:'2px solid #00ff88',
+        transition:'height .3s ease',
+        overflow:'hidden',
+        pointerEvents:'all',
+        display:'flex',flexDirection:'column',
+      }}>
+        {/* Drag handle */}
+        <div style={{padding:'10px',textAlign:'center',flexShrink:0}}>
+          <div style={{width:40,height:3,background:'#1a4a20',borderRadius:2,margin:'0 auto'}}/>
+        </div>
+        {/* Scrollable list */}
+        <div style={{flex:1,overflowY:'auto',padding:'0 12px 80px'}}>
+          {scenarios.map((s:any)=>(
+            <div key={s.id} onClick={()=>onSelect(s)}
+              style={{padding:'12px',marginBottom:8,borderRadius:4,cursor:'pointer',
+                background: selected?.id===s.id ? 'rgba(0,255,136,.12)' : 'rgba(0,20,8,.6)',
+                border:`1px solid ${selected?.id===s.id?'#00ff88':'#1a3a20'}`,
+              }}>
+              <div style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:15,color:'#00ff88',letterSpacing:1}}>{s.operationName}</div>
+              <div style={{fontFamily:'Barlow,sans-serif',fontSize:11,color:'#4a7a54',marginTop:2}}>{s.theater}</div>
+            </div>
+          ))}
+        </div>
+        {/* Selected + deploy */}
+        {selected && (
+          <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'10px 12px',background:'rgba(5,12,7,.98)',borderTop:'1px solid #1a3a20'}}>
+            <div style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:13,color:'#00ff88',fontWeight:700,marginBottom:6}}>{selected.operationName}</div>
+            <button onClick={onProceed} style={{width:'100%',padding:'12px',background:'rgba(0,255,136,.15)',border:'1px solid #00ff88',color:'#00ff88',fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:15,letterSpacing:2,borderRadius:4,cursor:'pointer'}}>
+              MISSION BRIEF →
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function MissionSelect({ onSelect, onBack }: Props) {
   const mapRef  = useRef<HTMLDivElement>(null)
   const mapInst = useRef<L.Map | null>(null)

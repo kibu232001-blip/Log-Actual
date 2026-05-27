@@ -408,7 +408,6 @@ export const useGameStore = create<Store>((set,get)=>({
       currentPhase:'EXECUTION',
       units:updatedUnits,
       pendingDecision:pending,
-      showAAR:over, isGameOver:over,
       metrics:{...s.metrics,avgReadiness:avg,stonewallRate:sw2,avgRequestCycleTime:rct,sigmaLevel:sigma},
       showDecisionModal:pending!==null,
       isGameOver:over || campaignFailed,
