@@ -349,7 +349,12 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
                 }
                 const cls = ['CL I','CL II','CL III','CL IV','CL V','CL VIII','CL IX']
                 const desc = cargo.map((c:any)=>`${cls[c.supplyClass]}:${c.amount}%`).join(' ')
-                AudioEngine.playConvoyDispatch(); injectAction(`${assetType} DISPATCHED → ${node.name} | ${desc} | ETA D+${assetType==='AIR'||assetType==='HELO'?1:assetType==='SEA'?3:2}`)
+                const totalW = cargo.reduce((s:number,c:any)=>s+c.amount,0)
+                const weather = (window as any).__gameWeather || 'CLEAR'
+                const wMult = weather==='STORM'?1.5:weather==='FOG'?1.2:weather==='RAIN'?1.1:1.0
+                const base = assetType==='AIR'||assetType==='HELO'?1:assetType==='SEA'?3:totalW>60?3:2
+                const eta = Math.max(1, Math.round(base*wMult))
+                AudioEngine.playConvoyDispatch(); injectAction(`${assetType} DISPATCHED → ${node.name} | ${desc} | ${totalW}t | ${weather}${wMult>1?` +${Math.round((wMult-1)*100)}%`:''}| ETA D+${eta}`)
                 setAction(null)
               }}
               onCancel={()=>setAction(null)}

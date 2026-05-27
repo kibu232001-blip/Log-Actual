@@ -55,7 +55,20 @@ function NATOSymbol({ nodeType, unitId, col, size, isDark:dk, isAmber, isStonewa
   const s = size
   const sw = Math.max(1.5, s*0.07)
   const anim = isStonewall?'sw-pulse 0.9s ease-in-out infinite':isAmber?'node-critical 2.0s ease-in-out infinite':'amb-breath 3s ease-in-out infinite'
-  const op = dk ? 0.25 : 1
+  const op = dk ? 0.15 : 1
+
+  // ── STONEWALL / DARK — UNIT OFFLINE BLACKOUT ─────────────────────────────
+  if (isStonewall || dk) {
+    const deathCol = dk ? '#440000' : '#ff2200'
+    return (
+      <svg width={s*1.5} height={s*0.75} viewBox="0 0 60 30"
+        style={{ animation:'sw-pulse 0.6s ease-in-out infinite', overflow:'visible' }}>
+        <rect x="1" y="5" width="58" height="22" fill="rgba(0,0,0,0.95)" stroke={deathCol} strokeWidth={sw*1.2} rx="1"/>
+        <line x1="10" y1="8" x2="50" y2="24" stroke={deathCol} strokeWidth={sw*1.5}/>
+        <line x1="50" y1="8" x2="10" y2="24" stroke={deathCol} strokeWidth={sw*1.5}/>
+      </svg>
+    )
+  }
 
   if (nodeType==='SEAPORT') return (
     <svg width={s} height={s} viewBox="0 0 40 40" style={{animation:anim,opacity:op}}>
@@ -163,8 +176,22 @@ export default function TheaterMap({ onBack }: Props) {
   const [showBackConfirm, setShowBackConfirm] = useState(false)
   const [redForceWarning, setRedForceWarning] = useState<string|null>(null)
   const [screenShake, setScreenShake]         = useState(false)
+  const [rocketStrikes, setRocketStrikes]     = useState<{id:string;unitId:string}[]>([])
   const lastAttacksRef = useRef<any[]>([])
   const lastSWRef      = useRef(0)
+
+  // Artillery flash listener
+  useEffect(() => {
+    const handleRocket = (e: Event) => {
+      const { unitId } = (e as CustomEvent).detail || {}
+      if (!unitId) return
+      const strikeId = `strike_${Date.now()}_${Math.random()}`
+      setRocketStrikes(prev => [...prev, { id:strikeId, unitId }])
+      setTimeout(() => setRocketStrikes(prev => prev.filter(s => s.id !== strikeId)), 1800)
+    }
+    window.addEventListener('ROCKET_IMPACT', handleRocket)
+    return () => window.removeEventListener('ROCKET_IMPACT', handleRocket)
+  }, [])
 
   // Combat cam — auto-zoom to enemy attack location
   const lastEnemyAttacks = useGameStore(s => (s as any).lastEnemyAttacks || [])
@@ -460,6 +487,24 @@ export default function TheaterMap({ onBack }: Props) {
         </svg>
 
         {/* Moving assets */}
+        {/* ── ROCKET IMPACT FLASHES ── */}
+        {rocketStrikes.map(strike => {
+          // Find the node position for this unit
+          const hitNode = GEO_NODES.find(n => n.unitId === strike.unitId)
+          const hitPos = hitNode ? pos[hitNode.id] : null
+          if (!hitPos) return null
+          return (
+            <div key={strike.id} style={{ position:'absolute', left:hitPos.x, top:hitPos.y, transform:'translate(-50%,-50%)', pointerEvents:'none', zIndex:200 }}>
+              <div style={{ position:'absolute', width:80, height:80, marginLeft:-40, marginTop:-40, borderRadius:'50%', border:'3px solid #ff4400', animation:'rocket-ring 1.2s ease-out forwards', opacity:1 }}/>
+              <div style={{ position:'absolute', width:40, height:40, marginLeft:-20, marginTop:-20, borderRadius:'50%', background:'rgba(255,100,0,0.4)', animation:'rocket-ring 0.8s ease-out forwards' }}/>
+              <div style={{ position:'absolute', width:12, height:12, marginLeft:-6, marginTop:-6, borderRadius:'50%', background:'#ff6600', boxShadow:'0 0 20px #ff4400', animation:'rocket-flash 0.4s ease-out forwards' }}/>
+              <style>{`
+                @keyframes rocket-ring  { 0%{transform:scale(0.2);opacity:1} 100%{transform:scale(2.5);opacity:0} }
+                @keyframes rocket-flash { 0%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(3)} }
+              `}</style>
+            </div>
+          )
+        })}
         <div style={{position:'absolute',inset:0,zIndex:25,pointerEvents:'none'}}>
           {movers.map(m=>{
             const col=m.moveType==='SEA'?'#4488ff':m.moveType==='HELO'?'#88ddff':m.moveType==='AIR'?'#00aaff':'#00ff88'

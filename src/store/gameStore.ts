@@ -106,6 +106,7 @@ function buildInitialState(scenarioId='CAMPAIGN_1'): GameState & { realConvoys:R
     pendingDecision:null, completedDecisions:[],
     metrics:{ avgReadiness:avg, stonewallRate:sw, avgRequestCycleTime:rct, sigmaLevel:sigma, doctrineAccuracy:0, forceMultiplierTotal:0 },
     metricsHistory:[], weather:'CLEAR', isGameOver:false, isPaused:false, showAAR:false,
+    difficulty: 'STANDARD' as 'EASY'|'STANDARD'|'HARD'|'SFC_CHALLENGE',
     realConvoys:[], mapFlyTarget:null as {lat:number;lng:number;zoom:number}|null, failureReason:null as string|null, pendingDecisionEvent:null as any, daysSinceLastAction:0, totalDecisionsMade:0, pendingCommanderEvent:null, firedCommanderEventIds:[], enemyAOs:[], enemyIntel:createInitialIntel(), lastEnemyAttacks:[], activeScenarioId:scenarioId, appliedBattlefieldEvents:day1Events as any[], locInterdictions:({} as Record<string,number>),
   }
 }
@@ -319,6 +320,12 @@ export const useGameStore = create<Store>((set,get)=>({
     let meta: any = { totalDays:30, enemyActivityLevel:0.35 }
     try { meta = getScenarioMeta(s.activeScenarioId || 'CAMPAIGN_1') } catch(e) {}
 
+    // Difficulty multipliers
+    const diff = (s as any).difficulty || 'STANDARD'
+    const diffEnemyMult = diff==='EASY' ? 0.4 : diff==='HARD' ? 1.5 : diff==='SFC_CHALLENGE' ? 2.0 : 1.0
+    const diffFatigueMult = diff==='EASY' ? 0.6 : diff==='HARD' ? 1.3 : diff==='SFC_CHALLENGE' ? 1.6 : 1.0
+    meta = { ...meta, enemyActivityLevel: Math.min(1.0, meta.enemyActivityLevel * diffEnemyMult) }
+
     // ── CONSUME SUPPLY (with scenario modifiers) ──
       updatedUnits=Object.fromEntries(
         Object.entries(s.units).map(([id,unit])=>{
@@ -347,7 +354,7 @@ export const useGameStore = create<Store>((set,get)=>({
           // ── READINESS ENGINE ─────────────────────────────────────────────
           // Base operational fatigue: every unit degrades daily regardless of supply
           // (equipment wear, personnel strain, accumulated operations tempo)
-          const baseFatigue = 1.5
+          const baseFatigue = 1.5 * diffFatigueMult
 
           // Supply-linked penalty: critical shortages accelerate collapse
           const supplyPenalty = minLvl < 10 ? 18    // Catastrophic — imminent stonewall
@@ -429,6 +436,8 @@ export const useGameStore = create<Store>((set,get)=>({
               const crit = [newLvls.CL_I, newLvls.CL_III, newLvls.CL_V]
               const newR = Math.max(0, Math.min(100, Math.min(...crit)))
               updatedUnits[eff.unitId] = { ...u, supplyLevels:newLvls, readiness:newR, status:getStatus(newR) }
+              // Artillery flash on the attacked unit's node
+              setTimeout(() => window.dispatchEvent(new CustomEvent('ROCKET_IMPACT', { detail: { unitId: eff.unitId } })), 100)
             }
           }
           if (eff.type === 'READINESS_DROP' && eff.unitId) {
@@ -801,11 +810,9 @@ export const useGameStore = create<Store>((set,get)=>({
   denyRequest:(requestId)=>set(s=>({requestQueue:s.requestQueue.map(r=>r.id===requestId?{...r,status:'DENIED'}:r)})),
   dispatchConvoy:(fromNodeId:string, toUnitId:string, cargo:Array<{supplyClass:number;amount:number}>, assetType:'GROUND'|'AIR'|'HELO'|'SEA')=>{
     const s=get()
-    const travelDays = assetType==='AIR'?1:assetType==='HELO'?1:assetType==='SEA'?3:2
     const isAir = assetType==='AIR'||assetType==='HELO'
 
     // ── PERMANENT LOC INTERDICTION CHECK ──────────────────────────────────────
-    // Find the LOC connecting from→to and block if interdicted (except air assets)
     if (!isAir) {
       const locs = (s.locs || {}) as Record<string, any>
       const matchedLOC = Object.values(locs).find((loc:any) =>
@@ -813,7 +820,6 @@ export const useGameStore = create<Store>((set,get)=>({
         (loc.from === toUnitId   || loc.to === toUnitId   || loc.to === fromNodeId)
       ) as any
       if (matchedLOC && matchedLOC.status === 'INTERDICTED') {
-        // Block dispatch — add feed event telling player why
         const blockEvent = {
           id:`BLOCK_${Date.now()}`, type:'LOGREP',
           title:`CONVOY BLOCKED — LOC INTERDICTED`,
@@ -823,11 +829,40 @@ export const useGameStore = create<Store>((set,get)=>({
           acknowledged:false, mitigated:false, location:'FRONT', mitigationWindow:0,
         }
         set(st=>({ appliedBattlefieldEvents:[blockEvent,...((st as any).appliedBattlefieldEvents||[])].slice(0,60) }))
-        return  // Abort dispatch
+        return
       }
     }
 
-    // Find LOC connecting from→to
+    // ── TRANSIT TIME CALCULATION (from Doc 1 + Doc 13 architecture) ───────────
+    // 1. Base travel time by asset type
+    let baseDays = assetType==='AIR'?1:assetType==='HELO'?1:assetType==='SEA'?3:2
+
+    // 2. Weight assessment — heavy cargo slows ground convoys
+    const totalWeight = cargo.reduce((sum:number, c:any) => sum + c.amount, 0)
+    const isHeavyLoad = totalWeight > 60
+    if (!isAir && isHeavyLoad) baseDays += 1  // Heavy payload: +1 day for ground
+
+    // 3. Route status penalty — damaged/contested route adds delay even if not blocked
+    const locs = (s.locs || {}) as Record<string, any>
+    const routeLOC = Object.values(locs).find((loc:any) =>
+      (loc.from === fromNodeId || loc.to === fromNodeId) &&
+      (loc.to === toUnitId || loc.from === toUnitId)
+    ) as any
+    const routePenalty = (!isAir && routeLOC?.status === 'CONTESTED') ? 1 : 0
+    baseDays += routePenalty
+
+    // 4. Weather multiplier — STORM adds 50% transit time
+    const weather = (s as any).weather || 'CLEAR'
+    const weatherMult = weather === 'STORM' ? 1.5 : weather === 'FOG' ? 1.2 : weather === 'RAIN' ? 1.1 : 1.0
+    const travelDays = Math.max(1, Math.round(baseDays * weatherMult))
+
+    // 5. Build modifier description for feed
+    const modifiers: string[] = []
+    if (isHeavyLoad) modifiers.push(`Heavy load ${totalWeight}t (+1d)`)
+    if (weatherMult > 1) modifiers.push(`${weather} weather (+${Math.round((weatherMult-1)*baseDays*10)/10}d)`)
+    if (routePenalty) modifiers.push(`Route contested (+1d)`)
+    const modStr = modifiers.length ? ` | ${modifiers.join(' | ')}` : ''
+
     const locId = `direct_${fromNodeId}_${toUnitId}`
     const newConvoy = {
       id:`CMD_CONVOY_${Date.now()}`,
@@ -875,7 +910,7 @@ export const useGameStore = create<Store>((set,get)=>({
       timeInDay:`${String(Math.floor(Math.random()*24)).padStart(2,'0')}${String(Math.floor(Math.random()*60)).padStart(2,'0')}Z`,
       title:`CONVOY DISPATCHED → ${unitName}`,
       location:fromNodeId, affectedAssets:[toUnitId],
-      report:`Commander-directed ${assetType} convoy dispatched to ${unitName}. Cargo: ${cargoDesc}. ETA D+${travelDays}. Asset moving along designated route.`,
+      report:`${assetType} DISPATCHED → ${unitName} | Cargo: ${totalWeight}t total (${cargoDesc}) | Base: ${baseDays}d${modStr} | ETA: D+${travelDays} | Weather: ${weather}`,
       doctrineImplication:'', effects:[], mitigationWindow:0, mitigated:true, acknowledged:false,
     }
     set(st=>({appliedBattlefieldEvents:[feedEvent,...((st as any).appliedBattlefieldEvents||[])].slice(0,60)}))
@@ -950,6 +985,7 @@ export const useGameStore = create<Store>((set,get)=>({
   },
   clearFlyTarget:()=>set({mapFlyTarget:null}),
   clearDecisionEvent:()=>set({pendingDecisionEvent:null}),
+  setDifficulty:(d:'EASY'|'STANDARD'|'HARD'|'SFC_CHALLENGE')=>set({difficulty:d} as any),
   setWeather:(w:string)=>set({weather:w as any}),
   dismissResult:()=>set({showResultCard:false,lastDecisionResult:null}),
 
