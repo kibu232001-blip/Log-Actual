@@ -186,13 +186,16 @@ export default function CinematicIntro({ onComplete }: Props) {
 
       {/* Main content */}
       <div style={{
-        display:'flex', alignItems:'center', gap:60,
+        display:'flex',
+        alignItems: window.innerWidth < 768 ? 'center' : 'center',
+        flexDirection: window.innerWidth < 768 ? 'column' : 'row',
+        gap: window.innerWidth < 768 ? 24 : 60,
         maxWidth:1000, width:'94%',
       }}>
 
         {/* ── RADAR SCREEN ── */}
         <div style={{ flexShrink:0 }}>
-          <svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+          <svg width={window.innerWidth < 768 ? 280 : 400} height={window.innerWidth < 768 ? 280 : 400} viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <radialGradient id="radar-bg" cx="50%" cy="50%" r="50%">
                 <stop offset="0%"   stopColor="#001808" stopOpacity="1"/>
@@ -317,20 +320,21 @@ export default function CinematicIntro({ onComplete }: Props) {
         </div>
 
         {/* ── TYPEWRITER TEXT ── */}
-        <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
+        <div style={{ flex:1, display:'flex', flexDirection:'column', width: window.innerWidth < 768 ? '100%' : 'auto' }}>
 
           {/* Header */}
           <div style={{
             fontFamily:'Barlow Condensed,sans-serif', fontWeight:700,
-            fontSize:11, letterSpacing:4, color:'#1a4a2a',
-            marginBottom:20,
+            fontSize: window.innerWidth < 768 ? 9 : 11, letterSpacing: window.innerWidth < 768 ? 2 : 4, color:'#1a4a2a',
+            marginBottom: window.innerWidth < 768 ? 10 : 20,
+            textAlign: window.innerWidth < 768 ? 'center' : 'left',
           }}>
             THEATER SUSTAINMENT COMMAND // INCOMING TRANSMISSION
           </div>
 
           {/* Text scroll area */}
           <div ref={scrollRef} style={{
-            height:320, overflowY:'hidden',
+            height: window.innerWidth < 768 ? 180 : 320, overflowY:'hidden',
             display:'flex', flexDirection:'column', justifyContent:'flex-end',
           }}>
             <div>

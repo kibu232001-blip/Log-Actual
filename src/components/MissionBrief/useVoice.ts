@@ -29,6 +29,25 @@ export const VOICE_PROFILES: Record<SpeakerKey, VoiceProfile> = {
   INTEL:    { rate: 1.05, pitch: 1.10, volume: 1.0 },  // LT — crisp, faster
 }
 
+// Mobile speech is faster due to TTS engine differences — apply correction
+const MOBILE_RATE_MULTIPLIER = /Android|iPhone|iPad/i.test(navigator.userAgent) ? 0.75 : 1.0
+
+// Best voice selector — prefer premium/natural voices for military feel
+function selectVoice(wantFemale: boolean): SpeechSynthesisVoice | undefined {
+  const voices = window.speechSynthesis?.getVoices() || []
+  const enVoices = voices.filter(v => v.lang.startsWith('en'))
+
+  // Priority: Google premium > network voices > local voices
+  const premiumMale   = enVoices.find(v => /google uk english male|daniel|mark|james|arthur/i.test(v.name))
+  const premiumFemale = enVoices.find(v => /google uk english female|samantha|karen|victoria|zira/i.test(v.name))
+  const anyMale       = enVoices.find(v => /male|man|david/i.test(v.name))
+  const anyFemale     = enVoices.find(v => /female|woman/i.test(v.name))
+  const anyEnglish    = enVoices[0]
+
+  if (wantFemale) return premiumFemale || anyFemale || anyEnglish || voices[0]
+  return premiumMale || anyMale || anyEnglish || voices[0]
+}
+
 // Character name prefixes stripped before speaking
 const STRIP_PREFIXES = [/^[A-Z\s]+:\s*/]
 
@@ -76,20 +95,12 @@ export function useVoice() {
     window.speechSynthesis.cancel()
     const profile = VOICE_PROFILES[speaker]
     const utter   = new SpeechSynthesisUtterance(cleanText(text))
-    utter.rate    = profile.rate
+    utter.rate    = profile.rate * MOBILE_RATE_MULTIPLIER
     utter.pitch   = profile.pitch
     utter.volume  = profile.volume
 
-    // Try to pick a male/female voice based on character
-    const voices  = window.speechSynthesis.getVoices()
     const femaleChars = new Set<SpeakerKey>(['INTEL'])
-    const wantFemale  = femaleChars.has(speaker)
-
-    const preferred = voices.find(v =>
-      v.lang.startsWith('en') &&
-      (wantFemale ? /female|woman|zira|samantha/i.test(v.name) : /male|man|david|daniel|mark/i.test(v.name))
-    ) ?? voices.find(v => v.lang.startsWith('en')) ?? voices[0]
-
+    const preferred = selectVoice(femaleChars.has(speaker))
     if (preferred) utter.voice = preferred
 
     utter.onstart = () => { setSpeaking(true); setCurrentSpeaker(speaker) }
@@ -111,12 +122,11 @@ export function useVoice() {
       const { text, speaker } = lines[index++]
       const profile = VOICE_PROFILES[speaker]
       const utter   = new SpeechSynthesisUtterance(cleanText(text))
-      utter.rate    = profile.rate
+      utter.rate    = profile.rate * MOBILE_RATE_MULTIPLIER
       utter.pitch   = profile.pitch
       utter.volume  = profile.volume
 
-      const voices  = window.speechSynthesis.getVoices()
-      const preferred = voices.find(v => v.lang.startsWith('en')) ?? voices[0]
+      const preferred = selectVoice(speaker === 'INTEL')
       if (preferred) utter.voice = preferred
 
       utter.onstart = () => { setSpeaking(true); setCurrentSpeaker(speaker) }

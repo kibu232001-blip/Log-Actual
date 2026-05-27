@@ -127,6 +127,40 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
     setSel(s); setThtr(s.theater)
   }
 
+  const isMobile = window.innerWidth < 768
+
+  if (isMobile) {
+    return (
+      <div style={{ position:'fixed', inset:0, background:'#050e06' }}>
+        <style>{MAP_CSS}</style>
+        {/* Map fills full screen */}
+        <div ref={mapRef} style={{ position:'absolute', inset:0 }} />
+
+        {/* Theater buttons top-left */}
+        <div style={{ position:'absolute', top:12, left:12, zIndex:1000, display:'flex', flexDirection:'column', gap:6 }}>
+          {(Object.keys(THEATERS) as TheaterRegion[]).map(t => (
+            <button key={t} onClick={() => flyTo(t)} style={{
+              background: thtr===t ? 'rgba(46,204,113,0.25)' : 'rgba(13,31,15,0.92)',
+              border:'1px solid ' + (thtr===t ? '#2ecc71' : '#2d5a32'),
+              color: thtr===t ? '#2ecc71' : '#7aab7e',
+              padding:'5px 10px', borderRadius:3, cursor:'pointer', fontSize:10,
+              letterSpacing:1, fontWeight:600, fontFamily:'Barlow Condensed,sans-serif',
+            }}>{THEATERS[t].label.toUpperCase()}</button>
+          ))}
+        </div>
+
+        {/* Retractable panel slides up from bottom */}
+        <MobilePanel
+          selected={sel}
+          scenarios={ALL_SCENARIOS}
+          onSelect={(s: MissionScenario) => { setSel(s); flyToS(s) }}
+          onProceed={() => { if(sel) onSelect(sel) }}
+          onBack={onBack}
+        />
+      </div>
+    )
+  }
+
   return (
     <div style={{ position:'fixed', inset:0, background:'#050e06', display:'grid', gridTemplateColumns:'1fr 340px', fontFamily:'Barlow Condensed,sans-serif' }}>
       <style>{MAP_CSS}</style>

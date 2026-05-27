@@ -79,10 +79,12 @@ export default function MissionBrief({ scenario, onProceed, onBack }: Props) {
     )
   }
 
+  const isMobile = window.innerWidth < 768
+
   return (
     <div style={{
       position:'fixed', inset:0, background:'#050e06',
-      display:'grid', gridTemplateRows:'auto 1fr auto',
+      display:'flex', flexDirection:'column',
       fontFamily:'Barlow Condensed, sans-serif', color:'#c8e6c9',
     }}>
       <style>{`
@@ -91,15 +93,15 @@ export default function MissionBrief({ scenario, onProceed, onBack }: Props) {
       `}</style>
 
       {/* HEADER */}
-      <div style={{ background:'#0d1f0f', borderBottom:'1px solid #2d5a32', padding:'14px 24px',
-        display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+      <div style={{ background:'#0d1f0f', borderBottom:'1px solid #2d5a32', padding: isMobile ? '8px 12px' : '14px 24px',
+        display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
         <div>
           <div style={{ fontSize:14, letterSpacing:3, color:'#2d5a32', marginBottom:4,
             fontFamily:'Share Tech Mono,monospace' }}>{scenario.classification}</div>
           <div style={{ fontSize:16, letterSpacing:2, color:'#7aab7e', marginBottom:4 }}>
             OPERATION ORDER — {scenario.theater.replace('_',' ')} THEATER
           </div>
-          <div style={{ fontSize:39, fontWeight:700, letterSpacing:3, color:'#2ecc71', lineHeight:1 }}>
+          <div style={{ fontSize: isMobile ? 22 : 39, fontWeight:700, letterSpacing: isMobile ? 1 : 3, color:'#2ecc71', lineHeight:1 }}>
             {scenario.operationName}
           </div>
           <div style={{ fontSize:18, color:'#7aab7e', marginTop:5 }}>{scenario.subtitle}</div>
@@ -118,16 +120,26 @@ export default function MissionBrief({ scenario, onProceed, onBack }: Props) {
       </div>
 
       {/* BODY */}
-      <div style={{ display:'grid', gridTemplateColumns:'220px 1fr', overflow:'hidden' }}>
+      <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', flex:1, overflow:'hidden' }}>
 
         {/* TAB LIST */}
-        <div style={{ background:'#0a1a0c', borderRight:'1px solid #2d5a32',
-          display:'flex', flexDirection:'column', padding:'12px 0', overflowY:'auto' }}>
+        <div style={{ background:'#0a1a0c',
+          borderRight: isMobile ? 'none' : '1px solid #2d5a32',
+          borderBottom: isMobile ? '1px solid #2d5a32' : 'none',
+          display:'flex', flexDirection: isMobile ? 'row' : 'column',
+          padding: isMobile ? '0' : '12px 0',
+          overflowX: isMobile ? 'auto' : 'hidden',
+          overflowY: isMobile ? 'hidden' : 'auto',
+          flexShrink:0,
+          minWidth: isMobile ? 'auto' : '180px',
+        }}>
           {tabs.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
               width:'100%', textAlign:'left', padding:'10px 20px',
               background: activeTab===tab.id ? 'rgba(46,204,113,0.1)' : 'transparent',
-              borderLeft: activeTab===tab.id ? '3px solid #2ecc71' : '3px solid transparent',
+              borderLeft: isMobile ? 'none' : (activeTab===tab.id ? '3px solid #2ecc71' : '3px solid transparent'),
+              borderBottom: isMobile ? (activeTab===tab.id ? '3px solid #2ecc71' : '3px solid transparent') : 'none',
+              whiteSpace: isMobile ? 'nowrap' : 'normal',
               border:'none', color: activeTab===tab.id ? '#2ecc71' : '#7aab7e',
               fontSize:18, letterSpacing:1, cursor:'pointer',
               fontFamily:'Barlow Condensed,sans-serif', fontWeight:600, transition:'all 0.15s',
