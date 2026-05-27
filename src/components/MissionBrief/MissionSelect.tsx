@@ -201,6 +201,46 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
   const mapInst = useRef<L.Map | null>(null)
   const [sel, setSel]     = useState<MissionScenario | null>(null)
   const [thtr, setThtr]   = useState<TheaterRegion>('EUROPE')
+  const musicRef = useRef<HTMLAudioElement | null>(null)
+
+  // Mission select music — fade in on mount, fade out on exit
+  useEffect(() => {
+    const audio = new Audio('/audio/mission-select.mp3')
+    audio.volume = 0
+    audio.loop = true
+    musicRef.current = audio
+    audio.play().catch(() => {})
+    let vol = 0
+    const fadeIn = setInterval(() => {
+      vol = Math.min(0.45, vol + 0.02)
+      audio.volume = vol
+      if (vol >= 0.45) clearInterval(fadeIn)
+    }, 60)
+    return () => {
+      clearInterval(fadeIn)
+      // Fade out on unmount
+      let v = audio.volume
+      const fadeOut = setInterval(() => {
+        v = Math.max(0, v - 0.05)
+        audio.volume = v
+        if (v <= 0) { clearInterval(fadeOut); audio.pause() }
+      }, 40)
+    }
+  }, [])
+
+  const handleSelect = (s: MissionScenario) => {
+    // Fade out music when proceeding to briefing
+    const audio = musicRef.current
+    if (audio) {
+      let v = audio.volume
+      const fadeOut = setInterval(() => {
+        v = Math.max(0, v - 0.06)
+        audio.volume = v
+        if (v <= 0) { clearInterval(fadeOut); audio.pause() }
+      }, 40)
+    }
+    onSelect(s)
+  }
 
   useEffect(() => {
     if (!mapRef.current || mapInst.current) return
@@ -349,8 +389,8 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
         <MissionPopup
           selected={sel}
           onDismiss={() => setSel(null)}
-          onBrief={() => { if(sel) onSelect(sel) }}
-          onProceed={() => { if(sel) onSelect(sel) }}
+          onBrief={() => { if(sel) handleSelect(sel) }}
+          onProceed={() => { if(sel) handleSelect(sel) }}
         />
       </div>
     )
@@ -422,7 +462,7 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
             <div style={{ fontSize:10, letterSpacing:2, color:'#7aab7e', marginBottom:6 }}>SELECTED</div>
             <div style={{ fontSize:16, fontWeight:700, color:'#2ecc71', marginBottom:8 }}>{sel.operationName}</div>
             <div style={{ fontSize:11, color:'#c8e6c9', lineHeight:1.6, marginBottom:14 }}>{sel.thumbnailDesc}</div>
-            <button onClick={() => onSelect(sel)} style={{
+            <button onClick={() => handleSelect(sel)} style={{
               width:'100%', padding:'11px 0',
               background:'rgba(46,204,113,0.2)', border:'2px solid #2ecc71',
               color:'#2ecc71', fontFamily:'Barlow Condensed,sans-serif',
@@ -432,7 +472,14 @@ export default function MissionSelect({ onSelect, onBack }: Props) {
         )}
 
         <div style={{ padding:'0 16px 16px', marginTop:'auto' }}>
-          <button onClick={onBack} style={{ width:'100%', padding:8, background:'transparent', border:'1px solid #2d5a32', color:'#7aab7e', fontFamily:'Barlow Condensed,sans-serif', fontSize:12, letterSpacing:2, borderRadius:3, cursor:'pointer' }}>← BACK</button>
+          <button onClick={() => {
+              const audio = musicRef.current
+              if (audio) {
+                let v = audio.volume
+                const fo = setInterval(() => { v = Math.max(0,v-0.06); audio.volume=v; if(v<=0){clearInterval(fo);audio.pause()} }, 40)
+              }
+              onBack()
+            }} style={{ width:'100%', padding:8, background:'transparent', border:'1px solid #2d5a32', color:'#7aab7e', fontFamily:'Barlow Condensed,sans-serif', fontSize:12, letterSpacing:2, borderRadius:3, cursor:'pointer' }}>← BACK</button>
         </div>
       </div>
     </div>

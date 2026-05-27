@@ -27,23 +27,7 @@ export default function SplashScreen({ onStart }: Props) {
     const timers = [
       setTimeout(() => setPhase(1), 400),
       setTimeout(() => setPhase(2), 1200),
-      setTimeout(() => {
-        // Fanfare fires at logo reveal — duck music under it
-        AudioEngine.resume()
-        AudioEngine.playMilitaryFanfare()
-        // Duck music to 25% during fanfare
-        audio.volume = 0.25
-        setTimeout(() => {
-          // Bring music back up after fanfare ends (~2.5s)
-          let v = 0.25
-          const restore = setInterval(() => {
-            v = Math.min(0.55, v + 0.02)
-            audio.volume = v
-            if (v >= 0.55) clearInterval(restore)
-          }, 80)
-        }, 2600)
-        setPhase(3)
-      }, 2200),
+      setTimeout(() => setPhase(3), 2200),
       setTimeout(() => setPhase(4), 3400),
     ]
 
@@ -56,10 +40,8 @@ export default function SplashScreen({ onStart }: Props) {
 
   const handleClick = () => {
     AudioEngine.resume()
-    // First tap before phase 4 — unlock audio and play fanfare
     if (phase < 4) {
       musicRef.current?.play().catch(() => {})
-      AudioEngine.playMilitaryFanfare()
       return
     }
     // Proceed — fade music out
