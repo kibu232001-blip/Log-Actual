@@ -106,7 +106,7 @@ function buildInitialState(scenarioId='CAMPAIGN_1'): GameState & { realConvoys:R
     pendingDecision:null, completedDecisions:[],
     metrics:{ avgReadiness:avg, stonewallRate:sw, avgRequestCycleTime:rct, sigmaLevel:sigma, doctrineAccuracy:0, forceMultiplierTotal:0 },
     metricsHistory:[], weather:'CLEAR', isGameOver:false, isPaused:false, showAAR:false,
-    realConvoys:[], mapFlyTarget:null as {lat:number;lng:number;zoom:number}|null, failureReason:null as string|null, pendingDecisionEvent:null as any, daysSinceLastAction:0, totalDecisionsMade:0, pendingCommanderEvent:null, firedCommanderEventIds:[], enemyAOs:[], enemyIntel:createInitialIntel(), lastEnemyAttacks:[], activeScenarioId:scenarioId, appliedBattlefieldEvents:day1Events as any[],
+    realConvoys:[], mapFlyTarget:null as {lat:number;lng:number;zoom:number}|null, failureReason:null as string|null, pendingDecisionEvent:null as any, daysSinceLastAction:0, totalDecisionsMade:0, pendingCommanderEvent:null, firedCommanderEventIds:[], enemyAOs:[], enemyIntel:createInitialIntel(), lastEnemyAttacks:[], activeScenarioId:scenarioId, appliedBattlefieldEvents:day1Events as any[], locInterdictions:({} as Record<string,number>),
   }
 }
 
@@ -298,6 +298,23 @@ export const useGameStore = create<Store>((set,get)=>({
     let newConvoys=[...(s.realConvoys||[])]
     let updatedAOs=(s.enemyAOs||[]).filter((ao:any)=>ao.expiresDay>nextDay)
 
+    // ── LOC STATUS — track interdictions with expiry ──────────────────────────
+    // Each LOC can be OPEN or INTERDICTED (with expiresDay)
+    const locInterdictions = { ...(s as any).locInterdictions || {} } as Record<string,number>
+    // Clear expired interdictions — LOCs reopen naturally
+    Object.keys(locInterdictions).forEach(locId => {
+      if (locInterdictions[locId] <= nextDay) delete locInterdictions[locId]
+    })
+    // Build updated locs with current interdiction status
+    let updatedLocs = { ...s.locs }
+    Object.keys(updatedLocs).forEach(locId => {
+      const loc = (updatedLocs as any)[locId]
+      if (loc) {
+        const isInterdicted = locInterdictions[locId] !== undefined
+        ;(updatedLocs as any)[locId] = { ...loc, status: isInterdicted ? 'INTERDICTED' : 'OPEN' }
+      }
+    })
+
     // ── LOAD SCENARIO META ──────────────────────────────────────────────────
     let meta: any = { totalDays:30, enemyActivityLevel:0.35 }
     try { meta = getScenarioMeta(s.activeScenarioId || 'CAMPAIGN_1') } catch(e) {}
@@ -326,7 +343,29 @@ export const useGameStore = create<Store>((set,get)=>({
               nl[cls]=Math.max(0,nl[cls]-amount)
             })
           const crit=[nl.CL_I,nl.CL_III,nl.CL_V],minLvl=Math.min(...crit)
-          const newR=Math.max(0,unit.readiness-(minLvl<20?15:minLvl<40?5:0))
+
+          // ── READINESS ENGINE ─────────────────────────────────────────────
+          // Base operational fatigue: every unit degrades daily regardless of supply
+          // (equipment wear, personnel strain, accumulated operations tempo)
+          const baseFatigue = 1.5
+
+          // Supply-linked penalty: critical shortages accelerate collapse
+          const supplyPenalty = minLvl < 10 ? 18    // Catastrophic — imminent stonewall
+                              : minLvl < 20 ? 12    // Critical — severe degradation
+                              : minLvl < 35 ? 5     // Low — moderate drain
+                              : minLvl < 50 ? 2     // Adequate — slight drag
+                              : 0                   // Sufficient — no penalty
+
+          // Recovery bonus: good supply allows units to catch up on maintenance
+          const recoveryBonus = minLvl > 70 && unit.readiness < 85 ? 1.5
+                              : minLvl > 60 && unit.readiness < 75 ? 0.5
+                              : 0
+
+          // Enemy adaptation adds extra pressure as campaign advances
+          const enemyPressure = meta.enemyActivityLevel > 0.5 && nextDay > 10 ? 0.5 : 0
+
+          const netChange = -(baseFatigue + supplyPenalty + enemyPressure) + recoveryBonus
+          const newR = Math.max(0, Math.min(100, unit.readiness + netChange))
           const newStatus = getStatus(newR, unit.personnelStrength, unit.stonewallStreak)
           const newStreak = newStatus==='STONEWALL' ? (unit.stonewallStreak||0)+1 : 0
           return [id,{...unit,supplyLevels:nl,readiness:newR,status:newStatus,stonewallStreak:newStreak}]
@@ -347,12 +386,13 @@ export const useGameStore = create<Store>((set,get)=>({
               const key=classKey(cargo.supplyClass)
               newLvls[key]=Math.min(100,(newLvls[key]??0)+cargo.amount)
             })
-            // Convoy delivery: readiness can improve toward new supply level
+            // Convoy delivery: supply restoration gives direct readiness boost
             const crit=[newLvls.CL_I,newLvls.CL_III,newLvls.CL_V]
-            const newTarget=Math.min(100,Math.max(0,Math.min(...crit)))
-            // Readiness recovers at 25% of gap per day toward new supply level
-            const oldR=u.readiness
-            const newR=Math.min(newTarget, oldR+(newTarget-oldR)*0.25)
+            const avgNewSupply = (newLvls.CL_I+newLvls.CL_III+newLvls.CL_V) / 3
+            // Larger supply deliveries give bigger readiness kick
+            const totalDelivered = c.cargo.reduce((sum: number, cargo: any) => sum + cargo.amount, 0)
+            const deliveryBoost = Math.min(15, totalDelivered * 0.15)  // up to +15% readiness per convoy
+            const newR = Math.min(100, u.readiness + deliveryBoost)
             updatedUnits[c.toUnitId]={...u,supplyLevels:newLvls,readiness:Math.round(newR),status:getStatus(Math.round(newR))}
           }
           arrived.push(c.id)
@@ -399,7 +439,22 @@ export const useGameStore = create<Store>((set,get)=>({
             }
           }
           // RCT and SIGMA effects accumulate — captured in metrics recalc
-        })
+          if (eff.type === 'LOC_INTERDICT' && eff.locId) {
+            const duration = (attack.durationDays || 2)
+            locInterdictions[eff.locId] = nextDay + duration
+            if ((updatedLocs as any)[eff.locId]) {
+              ;(updatedLocs as any)[eff.locId] = {
+                ...(updatedLocs as any)[eff.locId],
+                status: 'INTERDICTED'
+              }
+            }
+            // Signal the map — shake + audio — via CustomEvent (TheaterMap listens)
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('TRIGGER_SCREEN_SHAKE', { detail: { intensity: 10 } }))
+            }, 200)
+          }
+
+        })  // ← close effects.forEach
 
         // Add enemy AO for this attack
         if (attack.mapMarker) {
@@ -641,6 +696,8 @@ export const useGameStore = create<Store>((set,get)=>({
       victorySigma, victoryReadiness, victoryRCT,
       realConvoys:newConvoys,
       enemyAOs:updatedAOs,
+      locs: updatedLocs,
+      locInterdictions,
       enemyIntel:intel,
       lastEnemyAttacks:enemyAttacks,
       weather:currentWeather as any,
