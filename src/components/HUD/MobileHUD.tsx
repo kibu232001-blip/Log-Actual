@@ -182,13 +182,7 @@ export default function MobileHUD() {
             </div>
 
             {/* Advance button */}
-            <button onClick={()=>{ AudioEngine.resume(); AudioEngine.playDayAdvance(); advanceTurn() }} style={{
-              width:'100%', marginTop:10, padding:'9px 0',
-              background:'rgba(46,204,113,0.1)', border:'1px solid #27ae60',
-              color:'#2ecc71', fontFamily:'Barlow Condensed,sans-serif',
-              fontWeight:700, fontSize:14, letterSpacing:2, borderRadius:4, cursor:'pointer',
-              WebkitTapHighlightColor:'transparent',
-            }}>⏩ FORCE DAY ADVANCE</button>
+
           </div>
         )}
 

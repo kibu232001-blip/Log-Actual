@@ -537,8 +537,8 @@ export default function TheaterMap({ onBack }: Props) {
           <div style={{position:'absolute',left:0,right:0,height:'20%',background:'linear-gradient(to bottom,transparent,rgba(0,200,80,.012),transparent)',animation:'scan-move 6s linear infinite'}}/>
         </div>
 
-        {/* BACK BUTTON */}
-        {onBack && (
+        {/* BACK BUTTON — desktop only, on mobile use browser back */}
+        {onBack && window.innerWidth >= 768 && (
           <div style={{position:'absolute',top:70,left:10,zIndex:100}}>
             {!showBackConfirm ? (
               <button onClick={()=>setShowBackConfirm(true)} style={{

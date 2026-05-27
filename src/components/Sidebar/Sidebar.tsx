@@ -51,9 +51,7 @@ export default function Sidebar() {
             ⚡ DOCTRINE DECISION PENDING
           </button>
         )}
-        <button onClick={advanceTurn} style={{ width:'100%', padding:8, background:'rgba(46,204,113,0.12)', border:'1px solid #27ae60', color:'#2ecc71', fontFamily:'Barlow Condensed,sans-serif', fontWeight:600, fontSize:20, letterSpacing:1, borderRadius:4, cursor:'pointer', textTransform:'uppercase' }}>
-          ⏩ FORCE DAY ADVANCE
-        </button>
+
       </div>
     </div>
   )
