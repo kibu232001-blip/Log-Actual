@@ -1,348 +1,445 @@
-import React, { useState, useEffect } from 'react'
-import { MissionScenario } from '../../data/scenarios'
-import CommanderDialog from './CommanderDialog'
-import { getBriefingTeam } from '../../data/briefingTeams'
-import { useVoice } from './useVoice'
+import React, { useEffect, useRef, useState } from 'react'
+import * as L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import { ALL_SCENARIOS, SCENARIOS_BY_THEATER, MissionScenario, TheaterRegion } from '../../data/scenarios'
 
-interface Props {
-  scenario: MissionScenario
-  onProceed: () => void
-  onBack: () => void
+delete (L.Icon.Default.prototype as any)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+})
+
+interface Props { onSelect: (s: MissionScenario) => void; onBack: () => void }
+
+const THEATERS: Record<TheaterRegion, { lat:number; lng:number; zoom:number; label:string }> = {
+  EUROPE:      { lat:54,  lng:16,  zoom:5, label:'European Theater'    },
+  MIDDLE_EAST: { lat:30,  lng:44,  zoom:5, label:'Middle East Theater' },
+  PACIFIC:     { lat:22,  lng:140, zoom:4, label:'Pacific Theater'     },
 }
 
-type BriefTab = 'SITUATION' | 'MISSION' | 'EXECUTION' | 'SERVICE_SUPPORT' | 'COMMAND'
+const DCOL: Record<string,string> = { STANDARD:'#2ecc71', ELEVATED:'#f39c12', SEVERE:'#e74c3c' }
 
-const DIFF_COLORS: Record<string,string> = { STANDARD:'#2ecc71', ELEVATED:'#f39c12', SEVERE:'#e74c3c' }
+const MAP_CSS = `
+  .map-dark { filter:brightness(0.35) saturate(0.25) hue-rotate(90deg); }
+  .leaflet-control-attribution { background:rgba(13,31,15,0.8)!important; color:#2d5a32!important; font-size:9px!important; }
+  .leaflet-control-zoom a { background:#132415!important; color:#2ecc71!important; border-color:#2d5a32!important; }
+  .map-tt.leaflet-tooltip { background:#0d1f0f!important; border:1px solid #2d5a32!important; color:#2ecc71!important; font-family:'Barlow Condensed',sans-serif!important; font-size:12px!important; }
+  .map-tt.leaflet-tooltip::before { border-top-color:#2d5a32!important; }
+`
 
-// Speaker icon component
-function SpeakBtn({ onClick, speaking, small }: { onClick:()=>void; speaking:boolean; small?:boolean }) {
+// Mobile retractable campaign list
+// Mission popup card - floats above the tapped diamond icon
+function MissionPopup({ selected, onProceed, onBrief, onDismiss }: any) {
+  if (!selected) return null
+  const DIFF_COLORS: Record<string,string> = { STANDARD:'#2ecc71', ELEVATED:'#f39c12', SEVERE:'#e74c3c' }
+  const DIFF_LABEL: Record<string,string>  = { STANDARD:'● STANDARD', ELEVATED:'● ELEVATED', SEVERE:'● SEVERE' }
+  const c = DIFF_COLORS[selected.difficulty] || '#2ecc71'
   return (
-    <button onClick={onClick} title={speaking?'Stop':'Read aloud'} style={{
-      background: speaking ? 'rgba(0,255,136,0.2)' : 'rgba(0,255,136,0.08)',
-      border:`1px solid ${speaking?'#00ff88':'#2d5a32'}`,
-      color: speaking ? '#00ff88' : '#2d5a32',
-      borderRadius:3, cursor:'pointer',
-      width: small?22:28, height: small?22:28,
-      display:'flex', alignItems:'center', justifyContent:'center',
-      fontSize: small?12:14,
-      flexShrink:0,
-      transition:'all 0.15s',
-      animation: speaking ? 'speak-pulse 1s ease-in-out infinite' : 'none',
-    }}>
-      {speaking ? '■' : '▶'}
-    </button>
+    <div
+      onTouchStart={(e)=>e.stopPropagation()}
+      onTouchEnd={(e)=>e.stopPropagation()}
+      onClick={(e)=>e.stopPropagation()}
+      style={{
+        position:'fixed', bottom:24, left:12, right:12,
+        zIndex:500,
+        background:'rgba(4,12,6,.97)',
+        border:`1px solid ${c}`,
+        borderRadius:10,
+        padding:'16px',
+        boxShadow:`0 0 24px ${c}44, 0 8px 32px rgba(0,0,0,0.8)`,
+        animation:'popup-rise .25s ease',
+      }}>
+      <style>{`@keyframes popup-rise{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
+
+      {/* Dismiss */}
+      <button
+        onTouchEnd={(e)=>{ e.stopPropagation(); e.preventDefault(); onDismiss() }}
+        onClick={(e)=>{ e.stopPropagation(); onDismiss() }}
+        style={{
+        position:'absolute',top:10,right:12,
+        background:'transparent',border:'none',color:'#2d5a32',
+        fontSize:20,cursor:'pointer',lineHeight:1,padding:4,
+        WebkitTapHighlightColor:'transparent',
+      }}>✕</button>
+
+      {/* Header */}
+      <div style={{marginBottom:10}}>
+        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,letterSpacing:3,color:c,marginBottom:4}}>
+          {DIFF_LABEL[selected.difficulty]}
+        </div>
+        <div style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:22,color:'#fff',letterSpacing:1,lineHeight:1.1}}>
+          {selected.operationName}
+        </div>
+        <div style={{fontFamily:'Barlow,sans-serif',fontSize:12,color:'#7aab7e',marginTop:3}}>
+          {selected.subtitle}
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div style={{display:'flex',gap:8,marginBottom:14}}>
+        {[
+          {label:'DAYS', value:`D-${selected.duration}`},
+          {label:'SIGMA', value:`σ${selected.startingSigma}`},
+          {label:'RCT', value:`${selected.startingRCT}h`},
+        ].map(m=>(
+          <div key={m.label} style={{
+            flex:1,background:'rgba(0,0,0,.4)',border:'1px solid #1a3a20',
+            borderRadius:4,padding:'6px 8px',textAlign:'center',
+          }}>
+            <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:1}}>{m.label}</div>
+            <div style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:16,color:c}}>{m.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Action buttons */}
+      <div style={{display:'flex',gap:8}}>
+        <button
+          onTouchEnd={(e)=>{ e.stopPropagation(); e.preventDefault(); onBrief() }}
+          onClick={(e)=>{ e.stopPropagation(); onBrief() }}
+          style={{
+          flex:1,padding:'12px 0',
+          background:'transparent',border:`1px solid ${c}60`,color:'#7aab7e',
+          fontFamily:'Barlow Condensed,sans-serif',fontWeight:600,fontSize:14,letterSpacing:2,
+          borderRadius:5,cursor:'pointer', WebkitTapHighlightColor:'transparent',
+        }}>▶ BRIEFING</button>
+        <button
+          onTouchEnd={(e)=>{ e.stopPropagation(); e.preventDefault(); onProceed() }}
+          onClick={(e)=>{ e.stopPropagation(); onProceed() }}
+          style={{
+          flex:2,padding:'12px 0',
+          background:`${c}22`,border:`1px solid ${c}`,color:c,
+          fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:16,letterSpacing:2,
+          borderRadius:5,cursor:'pointer', WebkitTapHighlightColor:'transparent',
+        }}>DEPLOY →</button>
+      </div>
+    </div>
   )
 }
 
-export default function MissionBrief({ scenario, onProceed, onBack }: Props) {
-  const [activeTab, setActiveTab]           = useState<BriefTab>('SITUATION')
-  const [showDialog, setShowDialog]         = useState(false)
-  const [dialogDone, setDialogDone]         = useState(false)
-  const { speak, stop, speaking, currentSpeaker } = useVoice()
+// Nav arrows pointing to off-screen missions
+// Uses Leaflet's latLngToContainerPoint for accurate pixel positions
+function NavArrows({ scenarios, mapInst, onFly }: any) {
+  const [arrows, setArrows] = React.useState<any[]>([])
+  const DIFF_COLORS: Record<string,string> = { STANDARD:'#2ecc71', ELEVATED:'#f39c12', SEVERE:'#e74c3c' }
 
-  // Stop speech when tab changes
-  useEffect(() => { stop() }, [activeTab])
-  useEffect(() => { return () => stop() }, [])
+  React.useEffect(() => {
+    const update = () => {
+      const map = mapInst.current
+      if (!map) return
+      const container = map.getContainer()
+      const W = container.clientWidth
+      const H = container.clientHeight
+      const cx = W / 2, cy = H / 2
+      const margin = 52
+      const result: any[] = []
 
-  const diffColor = DIFF_COLORS[scenario.difficulty]
-  const isMobile = window.innerWidth < 768
+      scenarios.forEach((s: any) => {
+        // Convert lat/lng to pixel position using Leaflet API
+        const pt = map.latLngToContainerPoint(L.latLng(s.mapCenter[0], s.mapCenter[1]))
+        const mx = pt.x, my = pt.y
+        const onscreen = mx > margin && mx < W - margin && my > margin && my < H - margin
+        if (onscreen) return
 
-  // Read the active tab's content
-  const readTab = () => {
-    if (speaking) { stop(); return }
-    const texts: Record<BriefTab, string> = {
-      SITUATION: `Enemy forces. ${scenario.enemyForces}. Friendly forces. ${scenario.friendlyForces}. Theater assessment. ${scenario.situation}`,
-      MISSION: `Mission. ${scenario.mission}. Commander's intent. ${scenario.commandersIntent}`,
-      EXECUTION: `Execution. Campaign duration: ${scenario.duration} days. Difficulty: ${scenario.difficultyLabel}. Enemy activity level: ${Math.round(scenario.enemyActivityLevel*100)} percent.`,
-      SERVICE_SUPPORT: `Service support. ${scenario.serviceSupportNote}. Starting sigma: ${scenario.startingSigma}. Stonewall rate: ${scenario.startingStonewallRate} percent. Average request cycle time: ${scenario.startingRCT} hours.`,
-      COMMAND: `Command and signal. Success criteria. Sigma level three point zero or above. Stonewall rate below two percent. Request cycle time at or below thirty-two hours average. Zero unit-days above stonewall threshold in the final five days.`,
+        const dx = mx - cx, dy = my - cy
+        const angle = Math.atan2(dy, dx) * 180 / Math.PI
+        const dist = Math.sqrt(dx*dx + dy*dy)
+        // Place arrow at screen edge
+        const ex = cx + (dx/dist) * (cx - margin)
+        const ey = cy + (dy/dist) * (cy - margin)
+
+        result.push({
+          s, angle,
+          x: Math.max(margin, Math.min(W - margin, ex)),
+          y: Math.max(margin, Math.min(H - margin, ey))
+        })
+      })
+      setArrows(result)
     }
-    speak(texts[activeTab], 'NARRATOR')
+
+    const iv = setInterval(update, 400)
+    update()
+    // Also update on map move
+    const map = mapInst.current
+    if (map) { map.on('move zoom', update) }
+    return () => {
+      clearInterval(iv)
+      if (map) map.off('move zoom', update)
+    }
+  }, [mapInst.current])
+
+  return (
+    <>
+      <style>{`
+        @keyframes arrow-pulse{0%,100%{opacity:1;transform:translate(-50%,-50%) scale(1)}50%{opacity:0.55;transform:translate(-50%,-50%) scale(0.82)}}
+      `}</style>
+      {arrows.map(({s, angle, x, y}) => {
+        const c = DIFF_COLORS[s.difficulty] || '#2ecc71'
+        const abbr = s.operationName.replace('OPERATION ','').slice(0,10)
+        // Arrow points toward the off-screen mission
+        const arrowAngle = angle + 90 // rotate triangle to point in direction
+        return (
+          <div key={s.id}
+            onClick={(e) => { e.stopPropagation(); onFly(s) }}
+            style={{
+              position:'absolute', left:x, top:y,
+              transform:'translate(-50%,-50%)',
+              zIndex:350, cursor:'pointer', pointerEvents:'all',
+              animation:'arrow-pulse 1.5s ease-in-out infinite',
+              display:'flex', flexDirection:'column', alignItems:'center', gap:3,
+            }}>
+            {/* Directional arrow */}
+            <div style={{
+              width:42, height:42,
+              borderRadius:'50%',
+              background:`${c}18`,
+              border:`2px solid ${c}`,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              boxShadow:`0 0 12px ${c}66`,
+            }}>
+              <div style={{
+                width:0, height:0,
+                borderLeft:'7px solid transparent',
+                borderRight:'7px solid transparent',
+                borderBottom:`14px solid ${c}`,
+                transform:`rotate(${angle + 90}deg)`,
+                filter:`drop-shadow(0 0 4px ${c})`,
+              }}/>
+            </div>
+            {/* Label */}
+            <div style={{
+              fontFamily:'Share Tech Mono,monospace', fontSize:8, color:c,
+              letterSpacing:1, whiteSpace:'nowrap',
+              background:'rgba(4,12,6,.9)', padding:'2px 5px',
+              borderRadius:2, border:`1px solid ${c}44`,
+            }}>{abbr}</div>
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+export default function MissionSelect({ onSelect, onBack }: Props) {
+  const mapRef  = useRef<HTMLDivElement>(null)
+  const mapInst = useRef<L.Map | null>(null)
+  const [sel, setSel]     = useState<MissionScenario | null>(null)
+  const [thtr, setThtr]   = useState<TheaterRegion>('EUROPE')
+
+  useEffect(() => {
+    if (!mapRef.current || mapInst.current) return
+    const map = L.map(mapRef.current, { center:[45,30], zoom:3 })
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution:'© OpenStreetMap', className:'map-dark',
+    }).addTo(map)
+    mapInst.current = map
+
+    ALL_SCENARIOS.forEach(s => {
+      const c = DCOL[s.difficulty]
+      const isMob = window.innerWidth < 768
+      // 3D diamond SVG icon
+      const cl = c.replace('#','')
+      const diamondSvg = isMob ? `
+        <div style="width:52px;height:60px;position:relative;cursor:pointer;animation:diamond-float 2.4s ease-in-out infinite;">
+          <style>
+            @keyframes diamond-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+            @keyframes diamond-pulse{0%{transform:translate(-50%,-50%) scale(0.6);opacity:0.8}100%{transform:translate(-50%,-50%) scale(1.8);opacity:0}}
+          </style>
+          <!-- pulse ring -->
+          <div style="position:absolute;bottom:4px;left:50%;width:28px;height:8px;border-radius:50%;background:${c};transform:translate(-50%,-50%);animation:diamond-pulse 1.8s ease-out infinite;opacity:0.6;filter:blur(2px);"></div>
+          <!-- 3D diamond SVG -->
+          <svg width="52" height="52" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 4px 8px ${c}99)">
+            <defs>
+              <linearGradient id="dg-top-${cl}" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="${c}" stop-opacity="1"/>
+                <stop offset="100%" stop-color="${c}" stop-opacity="0.6"/>
+              </linearGradient>
+              <linearGradient id="dg-left-${cl}" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="${c}" stop-opacity="0.9"/>
+                <stop offset="100%" stop-color="${c}" stop-opacity="0.5"/>
+              </linearGradient>
+              <linearGradient id="dg-right-${cl}" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="${c}" stop-opacity="0.4"/>
+                <stop offset="100%" stop-color="${c}" stop-opacity="0.2"/>
+              </linearGradient>
+              <linearGradient id="dg-bot-${cl}" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="${c}" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="${c}" stop-opacity="0.1"/>
+              </linearGradient>
+            </defs>
+            <!-- top-left face (bright) -->
+            <polygon points="26,4 8,20 26,28" fill="url(#dg-top-${cl})"/>
+            <!-- top-right face (mid) -->
+            <polygon points="26,4 44,20 26,28" fill="url(#dg-left-${cl})"/>
+            <!-- bottom-left face (dark) -->
+            <polygon points="8,20 26,28 26,48" fill="url(#dg-right-${cl})"/>
+            <!-- bottom-right face (darkest) -->
+            <polygon points="44,20 26,28 26,48" fill="url(#dg-bot-${cl})"/>
+            <!-- edge highlights -->
+            <polygon points="26,4 8,20 26,28 44,20" fill="none" stroke="${c}" stroke-width="0.8" stroke-opacity="0.6"/>
+            <line x1="26" y1="4" x2="26" y2="48" stroke="${c}" stroke-width="0.5" stroke-opacity="0.3"/>
+            <line x1="8" y1="20" x2="44" y2="20" stroke="${c}" stroke-width="0.5" stroke-opacity="0.3"/>
+            <!-- top sparkle -->
+            <circle cx="26" cy="4" r="2" fill="white" opacity="0.9"/>
+          </svg>
+        </div>` 
+        : '<div style="width:16px;height:16px;border-radius:50%;background:' + c + ';border:2px solid rgba(0,0,0,0.6);box-shadow:0 0 10px ' + c + '80;cursor:pointer;"></div>'
+      const icon = L.divIcon({
+        className:'',
+        html: diamondSvg,
+        iconSize: isMob ? [52,60] : [16,16],
+        iconAnchor: isMob ? [26,48] : [8,8],
+      })
+      L.marker([s.mapCenter[0], s.mapCenter[1]], { icon })
+        .addTo(map)
+        .bindTooltip(s.operationName, { direction:'top', offset:[0, isMob ? -50 : -10], className:'map-tt' })
+        .on('click', (e) => { L.DomEvent.stopPropagation(e); justSelected.current = true; setSel(s); setThtr(s.theater) })
+    })
+    return () => { map.remove(); mapInst.current = null }
+  }, [])
+
+  const flyTo = (t: TheaterRegion) => {
+    const c = THEATERS[t]
+    mapInst.current?.flyTo([c.lat, c.lng], c.zoom, { duration:1.2 })
+    setThtr(t); setSel(null)
+  }
+  const flyToS = (s: MissionScenario) => {
+    mapInst.current?.flyTo(s.mapCenter, s.mapZoom, { duration:1.0 })
+    setSel(s); setThtr(s.theater)
   }
 
-  const tabs: { id:BriefTab; label:string }[] = [
-    { id:'SITUATION',      label:'1 — SITUATION'      },
-    { id:'MISSION',        label:'2 — MISSION'        },
-    { id:'EXECUTION',      label:'3 — EXECUTION'      },
-    { id:'SERVICE_SUPPORT',label:'4 — SERVICE SUPPORT'},
-    { id:'COMMAND',        label:'5 — COMMAND & SIG'  },
-  ]
+  const isMobile = window.innerWidth < 768
+  const justSelected = React.useRef(false)
 
-  if (showDialog && !dialogDone) {
+  if (isMobile) {
     return (
-      <CommanderDialog
-        team={getBriefingTeam(scenario.id)}
-        activeTab={activeTab}
-        onClose={() => { setDialogDone(true); setShowDialog(false) }}
-        onDeploy={() => { setDialogDone(true); setShowDialog(false); onProceed() }}
-      />
+      <div style={{ position:'fixed', inset:0, background:'#050e06' }}
+        onClick={() => {
+          if (justSelected.current) { justSelected.current = false; return }
+          setSel(null)
+        }}>
+        <style>{MAP_CSS}</style>
+        {/* Map fills full screen */}
+        <div ref={mapRef} style={{ position:'absolute', inset:0 }} />
+
+        {/* Theater filter — top left, compact */}
+        <div style={{ position:'absolute', top:12, left:12, zIndex:400, display:'flex', flexDirection:'column', gap:5 }}>
+          {(Object.keys(THEATERS) as TheaterRegion[]).map(t => (
+            <button key={t} onClick={(e) => { e.stopPropagation(); flyTo(t) }} style={{
+              background: thtr===t ? 'rgba(46,204,113,0.25)' : 'rgba(4,12,6,0.92)',
+              border:'1px solid ' + (thtr===t ? '#2ecc71' : '#2d5a32'),
+              color: thtr===t ? '#2ecc71' : '#7aab7e',
+              padding:'5px 10px', borderRadius:3, cursor:'pointer', fontSize:10,
+              letterSpacing:1, fontWeight:600, fontFamily:'Barlow Condensed,sans-serif',
+            }}>{THEATERS[t].label.toUpperCase()}</button>
+          ))}
+        </div>
+
+        {/* Hint text when nothing selected */}
+        {!sel && (
+          <div style={{
+            position:'absolute', top:12, right:12, zIndex:400,
+            fontFamily:'Share Tech Mono,monospace', fontSize:9, letterSpacing:1,
+            color:'#2d5a32', background:'rgba(4,12,6,.85)',
+            padding:'6px 10px', borderRadius:4, border:'1px solid #1a3a20',
+            textAlign:'right',
+          }}>
+            TAP A DIAMOND<br/>TO SELECT MISSION
+          </div>
+        )}
+
+        {/* Nav arrows for off-screen missions */}
+        <NavArrows scenarios={ALL_SCENARIOS} mapInst={mapInst} onFly={(s: any) => { justSelected.current = true; flyToS(s) }} />
+
+        {/* Mission popup card */}
+        <MissionPopup
+          selected={sel}
+          onDismiss={() => setSel(null)}
+          onBrief={() => { if(sel) onSelect(sel) }}
+          onProceed={() => { if(sel) onSelect(sel) }}
+        />
+      </div>
     )
   }
 
   return (
-    <div style={{
-      position:'fixed', inset:0, background:'#050e06',
-      display:'flex', flexDirection:'column',
-      fontFamily:'Barlow Condensed, sans-serif', color:'#c8e6c9',
-    }}>
-      <style>{`
-        @keyframes speak-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(0,255,136,0.4)} 50%{box-shadow:0 0 0 6px rgba(0,255,136,0)} }
-        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500&display=swap');
-      `}</style>
+    <div style={{ position:'fixed', inset:0, background:'#050e06', display:'grid', gridTemplateColumns:'1fr 340px', fontFamily:'Barlow Condensed,sans-serif' }}>
+      <style>{MAP_CSS}</style>
 
-      {/* HEADER */}
-      <div style={{ background:'#0d1f0f', borderBottom:'1px solid #2d5a32', padding: isMobile ? '8px 12px' : '14px 24px',
-        display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
-        <div>
-          <div style={{ fontSize:14, letterSpacing:3, color:'#2d5a32', marginBottom:4,
-            fontFamily:'Share Tech Mono,monospace' }}>{scenario.classification}</div>
-          <div style={{ fontSize:16, letterSpacing:2, color:'#7aab7e', marginBottom:4 }}>
-            OPERATION ORDER — {scenario.theater.replace('_',' ')} THEATER
-          </div>
-          <div style={{ fontSize: isMobile ? 22 : 39, fontWeight:700, letterSpacing: isMobile ? 1 : 3, color:'#2ecc71', lineHeight:1 }}>
-            {scenario.operationName}
-          </div>
-          <div style={{ fontSize:18, color:'#7aab7e', marginTop:5 }}>{scenario.subtitle}</div>
-        </div>
-        <div style={{ textAlign:'right', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
-          <div style={{ display:'inline-block', padding:'3px 12px', borderRadius:3,
-            background:`${diffColor}15`, border:`1px solid ${diffColor}40`,
-            color:diffColor, fontSize:16, letterSpacing:2 }}>{scenario.difficulty}</div>
-          <div style={{ display:'flex', gap:14, fontFamily:'Share Tech Mono,monospace',
-            fontSize:16, color:'#7aab7e' }}>
-            <span>D-{scenario.duration}</span>
-            <span>σ {scenario.startingSigma}</span>
-            <span>RCT {scenario.startingRCT}h</span>
-          </div>
-        </div>
-      </div>
+      <div style={{ position:'relative' }}>
+        <div ref={mapRef} style={{ width:'100%', height:'100%' }} />
 
-      {/* BODY */}
-      <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', flex:1, overflow:'hidden' }}>
-
-        {/* TAB LIST */}
-        <div style={{ background:'#0a1a0c',
-          borderRight: isMobile ? 'none' : '1px solid #2d5a32',
-          borderBottom: isMobile ? '1px solid #2d5a32' : 'none',
-          display:'flex', flexDirection: isMobile ? 'row' : 'column',
-          padding: isMobile ? '0' : '12px 0',
-          overflowX: isMobile ? 'auto' : 'hidden',
-          overflowY: isMobile ? 'hidden' : 'auto',
-          flexShrink:0,
-          minWidth: isMobile ? 'auto' : '180px',
-        }}>
-          {tabs.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-              width:'100%', textAlign:'left', padding:'10px 20px',
-              background: activeTab===tab.id ? 'rgba(46,204,113,0.1)' : 'transparent',
-              borderLeft: isMobile ? 'none' : (activeTab===tab.id ? '3px solid #2ecc71' : '3px solid transparent'),
-              borderBottom: isMobile ? (activeTab===tab.id ? '3px solid #2ecc71' : '3px solid transparent') : 'none',
-              whiteSpace: isMobile ? 'nowrap' : 'normal',
-              border:'none', color: activeTab===tab.id ? '#2ecc71' : '#7aab7e',
-              fontSize:18, letterSpacing:1, cursor:'pointer',
-              fontFamily:'Barlow Condensed,sans-serif', fontWeight:600, transition:'all 0.15s',
-            }}>{tab.label}</button>
+        <div style={{ position:'absolute', top:12, left:12, zIndex:1000, display:'flex', flexDirection:'column', gap:6 }}>
+          {(Object.keys(THEATERS) as TheaterRegion[]).map(t => (
+            <button key={t} onClick={() => flyTo(t)} style={{
+              background: thtr===t ? 'rgba(46,204,113,0.25)' : 'rgba(13,31,15,0.92)',
+              border:'1px solid ' + (thtr===t ? '#2ecc71' : '#2d5a32'),
+              color: thtr===t ? '#2ecc71' : '#7aab7e',
+              padding:'6px 14px', borderRadius:3, cursor:'pointer', fontSize:12,
+              letterSpacing:2, fontWeight:600, fontFamily:'Barlow Condensed,sans-serif',
+            }}>{THEATERS[t].label.toUpperCase()}</button>
           ))}
-
-          {/* Briefing team */}
-          <div style={{ padding:'16px 20px', borderTop:'1px solid #1a3020', marginTop:12 }}>
-            <div style={{ fontSize:14, letterSpacing:2, color:'#2d5a32', marginBottom:10 }}>BRIEFING TEAM</div>
-            {Object.entries({CDR:'COL Drake',SGM:'SGM Harris',S4:'CPT Okafor',SPO:'MAJ Reyes',INTEL:'LT Park'})
-              .map(([key,name]) => {
-                const c = ({CDR:'#2ecc71',SGM:'#f39c12',S4:'#3498db',SPO:'#9b59b6',INTEL:'#e74c3c'} as Record<string,string>)[key]
-                return (
-                  <div key={key} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                    <div style={{ width:28, height:28, borderRadius:'50%',
-                      background:`${c}15`, border:`1px solid ${c}40`,
-                      display:'flex', alignItems:'center', justifyContent:'center',
-                      fontSize:14, color:c, fontWeight:700 }}>{key}</div>
-                    <span style={{ fontSize:15, color:'#7aab7e' }}>{name}</span>
-                  </div>
-                )
-              })}
-          </div>
         </div>
 
-        {/* TAB CONTENT */}
-        <div style={{ padding:'24px 32px', overflowY:'auto' }}>
-
-          {/* Read-aloud control bar */}
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20,
-            padding:'8px 12px', background:'rgba(0,0,0,0.3)',
-            border:'1px solid #1a3020', borderRadius:4 }}>
-            <SpeakBtn onClick={readTab} speaking={speaking}/>
-            <span style={{ fontSize:16, color: speaking ? '#00ff88' : '#2d5a32',
-              fontFamily:'Share Tech Mono,monospace', letterSpacing:1 }}>
-              {speaking ? '● READING ALOUD...' : 'READ THIS SECTION ALOUD'}
-            </span>
-            {speaking && (
-              <button onClick={stop} style={{
-                marginLeft:'auto', background:'transparent', border:'1px solid #2d5a32',
-                color:'#7aab7e', padding:'3px 10px', borderRadius:3, cursor:'pointer',
-                fontFamily:'Barlow Condensed,sans-serif', fontSize:16,
-              }}>STOP ■</button>
-            )}
-          </div>
-
-          {activeTab === 'SITUATION' && (
-            <div>
-              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
-                <h2 style={{ fontSize:27, color:'#2ecc71', margin:0, letterSpacing:2 }}>1. SITUATION</h2>
-              </div>
-              {[
-                { label:'a. ENEMY FORCES',      text:scenario.enemyForces    },
-                { label:'b. FRIENDLY FORCES',   text:scenario.friendlyForces },
-                { label:'c. THEATER ASSESSMENT',text:scenario.situation      },
-              ].map(s => (
-                <div key={s.label} style={{ borderLeft:'3px solid #2d5a32', paddingLeft:16, marginBottom:22 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                    <h3 style={{ fontSize:16, letterSpacing:2, color:'#7aab7e', margin:0 }}>{s.label}</h3>
-                    <SpeakBtn small onClick={() => speaking ? stop() : speak(s.text,'NARRATOR')} speaking={speaking}/>
-                  </div>
-                  <p style={{ fontSize:21, lineHeight:1.8, color:'#c8e6c9', margin:0, fontFamily:'Barlow,sans-serif' }}>
-                    {s.text}
-                  </p>
-                </div>
-              ))}
+        <div style={{ position:'absolute', bottom:12, left:12, zIndex:1000, background:'rgba(13,31,15,0.92)', border:'1px solid #2d5a32', borderRadius:4, padding:'8px 12px', display:'flex', flexDirection:'column', gap:5 }}>
+          {([['STANDARD','#2ecc71'],['ELEVATED','#f39c12'],['SEVERE','#e74c3c']] as [string,string][]).map(([lbl,clr]) => (
+            <div key={lbl} style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ width:10, height:10, borderRadius:'50%', background:clr }}/>
+              <span style={{ fontSize:10, color:'#7aab7e', fontFamily:'Share Tech Mono,monospace' }}>{lbl}</span>
             </div>
-          )}
-
-          {activeTab === 'MISSION' && (
-            <div>
-              <h2 style={{ fontSize:27, color:'#2ecc71', marginBottom:16, letterSpacing:2 }}>2. MISSION</h2>
-              <div style={{ background:'#132415', border:'1px solid #2ecc71', borderRadius:4,
-                padding:20, marginBottom:24, display:'flex', gap:12, alignItems:'flex-start' }}>
-                <SpeakBtn onClick={() => speaking ? stop() : speak(scenario.mission,'CDR')} speaking={speaking && currentSpeaker==='CDR'}/>
-                <p style={{ fontSize:22, lineHeight:1.8, color:'#c8e6c9', margin:0,
-                  fontStyle:'italic', fontFamily:'Barlow,sans-serif' }}>{scenario.mission}</p>
-              </div>
-              <div style={{ borderLeft:'3px solid #f39c12', paddingLeft:16 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                  <h3 style={{ fontSize:16, letterSpacing:2, color:'#f39c12', margin:0 }}>COMMANDER'S INTENT</h3>
-                  <SpeakBtn small onClick={() => speaking ? stop() : speak(scenario.commandersIntent,'CDR')} speaking={speaking && currentSpeaker==='CDR'}/>
-                </div>
-                <p style={{ fontSize:21, lineHeight:1.8, color:'#c8e6c9', margin:0, fontFamily:'Barlow,sans-serif' }}>
-                  {scenario.commandersIntent}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'EXECUTION' && (
-            <div>
-              <h2 style={{ fontSize:27, color:'#2ecc71', marginBottom:16, letterSpacing:2 }}>3. EXECUTION</h2>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:24 }}>
-                {[
-                  { label:'Duration',        value:`${scenario.duration} Days` },
-                  { label:'Difficulty',      value:scenario.difficulty         },
-                  { label:'Enemy Activity',  value:`${Math.round(scenario.enemyActivityLevel*100)}%` },
-                  { label:'Theater',         value:scenario.theater.replace('_',' ') },
-                ].map(m => (
-                  <div key={m.label} style={{ background:'#132415', border:'1px solid #2d5a32',
-                    borderRadius:4, padding:'12px 16px' }}>
-                    <div style={{ fontSize:15, letterSpacing:2, color:'#7aab7e', marginBottom:4 }}>{m.label}</div>
-                    <div style={{ fontSize:24, fontWeight:700, color:'#c8e6c9' }}>{m.value}</div>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <h3 style={{ fontSize:16, letterSpacing:2, color:'#7aab7e', marginBottom:10 }}>THEATER NODES</h3>
-                {scenario.nodes.map(n => (
-                  <div key={n.id} style={{ display:'flex', gap:12, alignItems:'center',
-                    padding:'6px 12px', background:'#132415', borderRadius:3, marginBottom:4 }}>
-                    <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:15,
-                      color:'#3498db', minWidth:50 }}>{n.shortName}</span>
-                    <span style={{ fontSize:20, color:'#c8e6c9' }}>{n.name}</span>
-                    <span style={{ marginLeft:'auto', fontSize:15,
-                      color:n.status==='ACTIVE'?'#2ecc71':n.status==='INTERDICTED'?'#e74c3c':'#f39c12' }}>
-                      {n.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'SERVICE_SUPPORT' && (
-            <div>
-              <h2 style={{ fontSize:27, color:'#2ecc71', marginBottom:16, letterSpacing:2 }}>4. SERVICE SUPPORT</h2>
-              <div style={{ background:'#132415', border:'1px solid #2d5a32', borderRadius:4,
-                padding:20, marginBottom:24, display:'flex', gap:12, alignItems:'flex-start' }}>
-                <SpeakBtn onClick={() => speaking ? stop() : speak(scenario.serviceSupportNote,'S4')} speaking={speaking && currentSpeaker==='S4'}/>
-                <p style={{ fontSize:21, lineHeight:1.8, color:'#c8e6c9', margin:0, fontFamily:'Barlow,sans-serif' }}>
-                  {scenario.serviceSupportNote}
-                </p>
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-                {[
-                  { label:'Starting Sigma',    value:`${scenario.startingSigma}σ`,       color: scenario.startingSigma>=2?'#2ecc71':'#f39c12' },
-                  { label:'Stonewall Rate',     value:`${scenario.startingStonewallRate}%`, color: scenario.startingStonewallRate<10?'#f39c12':'#e74c3c' },
-                  { label:'Avg RCT',            value:`${scenario.startingRCT}h`,          color: scenario.startingRCT<=40?'#f39c12':'#e74c3c' },
-                ].map(m => (
-                  <div key={m.label} style={{ background:'#0a1a0c', border:`1px solid ${m.color}40`,
-                    borderRadius:4, padding:'14px 16px', textAlign:'center' }}>
-                    <div style={{ fontSize:14, letterSpacing:2, color:'#7aab7e', marginBottom:6 }}>{m.label}</div>
-                    <div style={{ fontSize:42, fontWeight:700, color:m.color }}>{m.value}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'COMMAND' && (
-            <div>
-              <h2 style={{ fontSize:27, color:'#2ecc71', marginBottom:16, letterSpacing:2 }}>5. COMMAND &amp; SIGNAL</h2>
-              <div style={{ borderLeft:'3px solid #2d5a32', paddingLeft:16, marginBottom:20 }}>
-                <h3 style={{ fontSize:16, letterSpacing:2, color:'#7aab7e', marginBottom:10 }}>SUCCESS CRITERIA</h3>
-                {['Sigma level ≥ 3.0σ at campaign end','Stonewall rate < 2%',
-                  'Request cycle time ≤ 32 hours average',
-                  'Zero unit-days above Stonewall threshold in final 5 days'].map((c,i) => (
-                  <div key={i} style={{ display:'flex', gap:10, fontSize:20, color:'#c8e6c9', marginBottom:6, fontFamily:'Barlow,sans-serif' }}>
-                    <span style={{ color:'#2ecc71' }}>▶</span>{c}
-                  </div>
-                ))}
-              </div>
-              <div style={{ background:'#132415', border:'1px solid #e74c3c40', borderRadius:4, padding:16 }}>
-                <h3 style={{ fontSize:16, letterSpacing:2, color:'#e74c3c', marginBottom:10 }}>FAILURE CONDITIONS</h3>
-                {['Main effort unit in Stonewall for 3+ consecutive days',
-                  'Theater sigma drops below 1.0σ',
-                  'More than 40% of units simultaneously in Stonewall'].map((c,i) => (
-                  <div key={i} style={{ display:'flex', gap:10, fontSize:20, color:'#c8e6c9', marginBottom:6, fontFamily:'Barlow,sans-serif' }}>
-                    <span style={{ color:'#e74c3c' }}>■</span>{c}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          ))}
         </div>
       </div>
 
-      {/* FOOTER */}
-      <div style={{ background:'#0d1f0f', borderTop:'1px solid #2d5a32', padding:'12px 24px',
-        display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <button onClick={onBack} style={{
-          background:'transparent', border:'1px solid #2d5a32', color:'#7aab7e',
-          padding:'8px 20px', borderRadius:3, cursor:'pointer',
-          fontFamily:'Barlow Condensed,sans-serif', fontSize:18, letterSpacing:2,
-        }}>← BACK TO MAP</button>
+      <div style={{ background:'#0d1f0f', borderLeft:'1px solid #2d5a32', display:'flex', flexDirection:'column', overflowY:'auto' }}>
+        <div style={{ padding:'16px 16px 12px', borderBottom:'1px solid #2d5a32' }}>
+          <div style={{ fontSize:10, letterSpacing:3, color:'#2d5a32', marginBottom:4, fontFamily:'Share Tech Mono,monospace' }}>SELECT OPERATION</div>
+          <div style={{ fontSize:22, fontWeight:700, color:'#2ecc71', letterSpacing:2 }}>CAMPAIGN SELECT</div>
+          <div style={{ fontSize:11, color:'#7aab7e', marginTop:4 }}>6 operations · 3 theaters · click map or list</div>
+        </div>
 
-        <div style={{ display:'flex', gap:12 }}>
-          {!dialogDone && (
-            <button onClick={() => { stop(); setShowDialog(true) }} style={{
-              background:'rgba(52,152,219,0.15)', border:'1px solid #3498db40', color:'#3498db',
-              padding:'8px 20px', borderRadius:3, cursor:'pointer',
-              fontFamily:'Barlow Condensed,sans-serif', fontSize:18, letterSpacing:2,
-            }}>
-              ▶ COMMANDER BRIEFING
-            </button>
-          )}
-          <button onClick={() => { stop(); onProceed() }} style={{
-            background:'rgba(46,204,113,0.2)', border:'1px solid #2ecc71', color:'#2ecc71',
-            padding:'10px 28px', borderRadius:3, cursor:'pointer',
-            fontFamily:'Barlow Condensed,sans-serif', fontWeight:700, fontSize:21, letterSpacing:2,
-          }}>
-            DEPLOY →
-          </button>
+        {(Object.keys(SCENARIOS_BY_THEATER) as TheaterRegion[]).map(t => (
+          <div key={t}>
+            <div style={{ padding:'8px 16px', background:'#0a1a0c', borderBottom:'1px solid #2d5a32', fontSize:10, letterSpacing:3, color:'#7aab7e' }}>
+              {t.replace('_',' ')} THEATER
+            </div>
+            {SCENARIOS_BY_THEATER[t].map(s => (
+              <div key={s.id} onClick={() => flyToS(s)} style={{
+                padding:'12px 16px', borderBottom:'1px solid #1a3020', cursor:'pointer',
+                background: sel?.id===s.id ? 'rgba(46,204,113,0.08)' : 'transparent',
+                borderLeft:'3px solid ' + (sel?.id===s.id ? '#2ecc71' : 'transparent'),
+                transition:'all 0.15s',
+              }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'#c8e6c9', letterSpacing:1 }}>{s.operationName}</div>
+                  <span style={{ fontSize:9, padding:'2px 6px', borderRadius:2, flexShrink:0, marginLeft:8, background:DCOL[s.difficulty]+'20', color:DCOL[s.difficulty], border:'1px solid ' + DCOL[s.difficulty]+'40' }}>{s.difficulty}</span>
+                </div>
+                <div style={{ fontSize:10, color:'#7aab7e', marginBottom:6 }}>{s.subtitle}</div>
+                <div style={{ display:'flex', gap:12, fontSize:10, fontFamily:'Share Tech Mono,monospace', color:'#2d5a32' }}>
+                  <span>D{s.duration}</span><span>s{s.startingSigma}</span><span>RCT {s.startingRCT}h</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+
+        {sel && (
+          <div style={{ margin:16, padding:16, background:'#132415', border:'1px solid #2ecc71', borderRadius:4 }}>
+            <div style={{ fontSize:10, letterSpacing:2, color:'#7aab7e', marginBottom:6 }}>SELECTED</div>
+            <div style={{ fontSize:16, fontWeight:700, color:'#2ecc71', marginBottom:8 }}>{sel.operationName}</div>
+            <div style={{ fontSize:11, color:'#c8e6c9', lineHeight:1.6, marginBottom:14 }}>{sel.thumbnailDesc}</div>
+            <button onClick={() => onSelect(sel)} style={{
+              width:'100%', padding:'11px 0',
+              background:'rgba(46,204,113,0.2)', border:'2px solid #2ecc71',
+              color:'#2ecc71', fontFamily:'Barlow Condensed,sans-serif',
+              fontWeight:700, fontSize:15, letterSpacing:3, borderRadius:3, cursor:'pointer',
+            }}>MISSION BRIEF →</button>
+          </div>
+        )}
+
+        <div style={{ padding:'0 16px 16px', marginTop:'auto' }}>
+          <button onClick={onBack} style={{ width:'100%', padding:8, background:'transparent', border:'1px solid #2d5a32', color:'#7aab7e', fontFamily:'Barlow Condensed,sans-serif', fontSize:12, letterSpacing:2, borderRadius:3, cursor:'pointer' }}>← BACK</button>
         </div>
       </div>
     </div>
