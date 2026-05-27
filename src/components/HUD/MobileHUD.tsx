@@ -196,34 +196,54 @@ export default function MobileHUD() {
           )
         })()}
 
-        {tab === 'SUPPLY' && (
-          <div>
-            <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9,
-              letterSpacing:3, color:'#2d5a32', marginBottom:10 }}>THEATER SUPPLY — AVERAGE ACROSS ALL UNITS</div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-              {(['CL_I','CL_II','CL_III','CL_IV','CL_V','CL_IX'] as const).map((cls,i) => {
-                const labels = ['CL I','CL II','CL III','CL IV','CL V','CL IX']
-                const avg = unitList.length
-                  ? Math.round(unitList.reduce((a:number,u:any)=>a+(u.supplyLevels?.[cls]??0),0)/unitList.length)
-                  : 0
-                const col = avg >= 60 ? '#2ecc71' : avg >= 30 ? '#f39c12' : '#e74c3c'
+        {tab === 'SUPPLY' && (() => {
+          const convoys = useGameStore(s => (s as any).realConvoys || [])
+          const inTransit = convoys.filter((c:any) => c.status === 'EN_ROUTE')
+          const delivered = convoys.filter((c:any) => c.status === 'DELIVERED')
+          const CLS = ['','CL I','CL II','CL III','CL IV','CL V','CL VIII','CL IX']
+          return (
+            <div>
+              <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,letterSpacing:3,color:'#2d5a32',marginBottom:10}}>
+                LIVE CONVOY MISSIONS — {inTransit.length} IN TRANSIT
+              </div>
+              {inTransit.length === 0 && (
+                <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:'#1a3a20',textAlign:'center',padding:'20px 0'}}>
+                  NO CONVOYS IN TRANSIT — DISPATCH FROM MAP
+                </div>
+              )}
+              {inTransit.map((c:any) => {
+                const daysLeft = Math.max(0, c.travelDays - (currentDay - c.departedDay))
+                const pct = Math.round((c.departedDay ? (currentDay - c.departedDay) / c.travelDays : 0) * 100)
+                const col = c.assetType==='AIR'||c.assetType==='HELO' ? '#00aaff' : c.assetType==='SEA' ? '#4488ff' : '#00ff88'
+                const icon = c.assetType==='AIR'?'✈':c.assetType==='HELO'?'🚁':c.assetType==='SEA'?'⛴':'🚚'
+                const cargoStr = (c.cargo||[]).filter((x:any)=>x.amount>0).map((x:any)=>`${CLS[x.supplyClass]}:${x.amount}%`).join(' ')
                 return (
-                  <div key={cls} style={{ background:'#0d1f10', border:`1px solid ${col}30`,
-                    borderRadius:4, padding:'8px 10px' }}>
-                    <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9,
-                      color:'#2d5a32', marginBottom:5, letterSpacing:1 }}>{labels[i]}</div>
-                    <div style={{ height:5, background:'#050e06', borderRadius:2, marginBottom:5 }}>
-                      <div style={{ height:'100%', width:`${avg}%`, background:col, borderRadius:2,
-                        transition:'width .3s' }}/>
+                  <div key={c.id} style={{marginBottom:8,padding:'8px 10px',borderRadius:4,background:`${col}08`,border:`1px solid ${col}30`}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}>
+                      <span style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:14,color:col}}>{icon} {c.assetType} → {(c.toUnitId||'').replace(/_/g,' ')}</span>
+                      <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:daysLeft<=1?'#ff8800':col}}>D+{daysLeft}</span>
                     </div>
-                    <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:20,
-                      fontWeight:700, color:col }}>{avg}%</div>
+                    <div style={{height:4,background:'#0d1f10',borderRadius:2,marginBottom:4}}>
+                      <div style={{height:'100%',width:`${pct}%`,background:col,borderRadius:2,transition:'width .5s'}}/>
+                    </div>
+                    <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:`${col}80`}}>{cargoStr || 'CARGO EN ROUTE'}</div>
                   </div>
                 )
               })}
+              {delivered.length > 0 && (
+                <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #1a3a20'}}>
+                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:2,marginBottom:5}}>DELIVERED THIS CAMPAIGN: {delivered.length}</div>
+                  {delivered.slice(-3).map((c:any) => (
+                    <div key={c.id} style={{display:'flex',justifyContent:'space-between',padding:'3px 6px',fontSize:10,fontFamily:'Share Tech Mono,monospace',color:'#2d5a32'}}>
+                      <span>✓ {c.assetType} → {(c.toUnitId||'').replace(/_/g,' ')}</span>
+                      <span>D{c.departedDay}+{c.travelDays}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {tab === 'FEED' && (
           <div>

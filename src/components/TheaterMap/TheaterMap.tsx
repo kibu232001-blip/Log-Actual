@@ -164,7 +164,12 @@ export default function TheaterMap({ onBack }: Props) {
   // Load scenario-specific theater network
   const theater = getTheaterNetwork(activeScenarioId)
   const GEO_NODES = theater.nodes
-  const LOCS      = theater.locs
+  const storeLocs = useGameStore(s => s.locs)
+  // Merge live interdiction/status from store onto static LOC definitions
+  const LOCS = theater.locs.map((loc:TheaterLOC) => {
+    const live = storeLocs ? (storeLocs as any)[loc.id] : null
+    return live ? { ...loc, status: live.status || loc.status } : loc
+  })
 
   const mapRef      = useRef<HTMLDivElement>(null)
   const svgRef      = useRef<HTMLDivElement>(null)

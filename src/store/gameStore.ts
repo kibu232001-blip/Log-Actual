@@ -263,9 +263,31 @@ export const useGameStore = create<Store>((set,get)=>({
   startAutoAdvance:()=>{
     const ex=get()._timerInterval; if(ex) clearInterval(ex)
     const iv=setInterval(()=>{
-      // Use updater form — always reads fresh state, never stale closure
       set(s => {
         if(s.isPaused || s.isGameOver) return {}
+
+        // ── CONTINUOUS GAME-OVER WATCHDOG — runs every second ─────────────────
+        const unitArr = Object.values(s.units as any) as any[]
+        const diff3 = (s as any).difficulty || 'STANDARD'
+        const maxLost = diff3==='SFC_CHALLENGE' ? 1 : diff3==='HARD' ? 2 : 3
+        const terminalUnits = unitArr.filter((u:any) => u.status==='DARK' || (u.stonewallStreak||0) >= 4)
+        if (terminalUnits.length >= maxLost) {
+          const n = terminalUnits[0]
+          return {
+            isGameOver:true, showAAR:true, isPaused:true,
+            failureReason:`${diff3} LOSS — ${n?.name||'UNIT'} COMBAT INEFFECTIVE. THEATER COMMAND RELIEVED.`,
+            campaignVictory:false, campaignGrade:'F',
+          } as any
+        }
+        if ((s.metrics.sigmaLevel) < 1.0 && s.currentDay > 3) {
+          return {
+            isGameOver:true, showAAR:true, isPaused:true,
+            failureReason:`SIGMA COLLAPSE (σ${s.metrics.sigmaLevel.toFixed(1)}) — DISTRIBUTION SYSTEM FAILED.`,
+            campaignVictory:false, campaignGrade:'F',
+          } as any
+        }
+        // ── END WATCHDOG ──────────────────────────────────────────────────────
+
         const next = s.secondsToNextDay - 1
         if(next <= 0){
           // Call advanceTurn outside set() via setTimeout to avoid nested state mutations
@@ -400,6 +422,29 @@ export const useGameStore = create<Store>((set,get)=>({
           }
           newFeedEvents.push(warnEvent)
         }
+
+        // Convoy ambush roll — only ground convoys on contested/active enemy days
+        if (!c.isAir && c.assetType !== 'SEA' && daysRemaining > 0) {
+          const ambushChance = meta.enemyActivityLevel * 0.25  // max 25% on highest activity
+          const locId = c.locId || ''
+          const locInterdicted = (s as any).locInterdictions?.[locId]
+          const extraRisk = locInterdicted ? 0.15 : 0
+          if (Math.random() < ambushChance + extraRisk) {
+            // Ambush hit — reduce cargo by 30-60%
+            const damagePct = 0.3 + Math.random() * 0.3
+            const damagedCargo = (c.cargo || []).map((item:any) => ({
+              ...item, amount: Math.round(item.amount * (1 - damagePct))
+            }))
+            const ambushEvent = {
+              id:`AMBUSH_${c.id}_${nextDay}`, type:'SITREP', priority:'PRIORITY',
+              title:`CONVOY AMBUSHED — ${c.assetType} EN ROUTE TO ${c.toUnitId.replace(/_/g,' ')}`,
+              report:`Enemy forces engaged convoy. ${Math.round(damagePct*100)}% cargo destroyed. Survivors continuing to destination. Recommend route change on next dispatch.`,
+              effects:[], affectedAssets:[c.toUnitId], acknowledged:false, mitigated:false,
+            }
+            newFeedEvents.push(ambushEvent)
+            return { ...c, cargo: damagedCargo, progress: prog }
+          }
+        }
         if(prog>=1){
           const u=updatedUnits[c.toUnitId]
           if(u){
@@ -519,12 +564,13 @@ export const useGameStore = create<Store>((set,get)=>({
       const sw2b        = calcSW(updatedUnits)
       const sigma2b     = calcSigma(sw2b, calcRCT(updatedUnits))
 
-      // Failure conditions
-      const catastrophicCollapse = swUnits / totalUnits >= 0.30           // 30% stonewall (2 of 6)
-      const sigmaCollapse        = sigma2b < 1.0                          // sigma floor
-      const massiveDark          = darkUnits >= 2                         // 2+ units dark
-      const extendedStonewall    = Object.values(updatedUnits).some((u:any)=>u.stonewallStreak >= 3)  // 3 days stonewall = combat ineffective
-      const singleUnitCollapse   = Object.values(updatedUnits).some((u:any)=>(u.readiness??100) <= 1 && (u.stonewallStreak??0) >= 2) // any unit near-zero for 2+ days
+      // Failure conditions — threshold tightens with difficulty
+      const swStreakLimit = diff2==='SFC_CHALLENGE' ? 2 : diff2==='HARD' ? 3 : 4
+      const catastrophicCollapse = swUnits / totalUnits >= 0.30
+      const sigmaCollapse        = sigma2b < 1.0
+      const massiveDark          = darkUnits >= 2
+      const extendedStonewall    = Object.values(updatedUnits).some((u:any)=>u.stonewallStreak >= swStreakLimit)
+      const singleUnitCollapse   = Object.values(updatedUnits).some((u:any)=>(u.readiness??100) <= 1 && (u.stonewallStreak??0) >= 2)
 
       // Difficulty-based hard loss: SFC_CHALLENGE = 1 FOB lost = game over, HARD = 2, STANDARD = 3
       const diff2 = (s as any).difficulty || 'STANDARD'
