@@ -45,6 +45,7 @@ export default function MissionBrief({ scenario, onProceed, onBack }: Props) {
   useEffect(() => { return () => stop() }, [])
 
   const diffColor = DIFF_COLORS[scenario.difficulty]
+  const isMobile = window.innerWidth < 768
 
   // Read the active tab's content
   const readTab = () => {
@@ -69,10 +70,10 @@ export default function MissionBrief({ scenario, onProceed, onBack }: Props) {
 
   if (showDialog && !dialogDone) {
     return (
-      <CommanderDialog team={getBriefingTeam(scenario.id)}
-        lines={scenario.openingDialog}
-        title={`${scenario.operationName} — PRE-MISSION BRIEF`}
-        onComplete={() => { setDialogDone(true); setShowDialog(false) }}
+      <CommanderDialog
+        team={getBriefingTeam(scenario.id)}
+        activeTab={activeTab}
+        onClose={() => { setDialogDone(true); setShowDialog(false) }}
       />
     )
   }
