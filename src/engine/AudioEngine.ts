@@ -147,6 +147,64 @@ class AudioEngineClass {
     } catch(e) {}
   }
 
+  // ── SPLASH MILITARY FANFARE ──────────────────────────────────────────────────
+  playMilitaryFanfare() {
+    try {
+      const ctx = this.getCtx()
+      if (ctx.state === 'suspended') ctx.resume()
+      const t = ctx.currentTime
+
+      // Snare drum roll lead-in
+      for (let i = 0; i < 12; i++) {
+        const nb = ctx.createOscillator()
+        const ng = ctx.createGain()
+        const bf = ctx.createBiquadFilter()
+        bf.type = 'bandpass'; bf.frequency.value = 180 + Math.random() * 40
+        nb.type = 'sawtooth'; nb.frequency.value = 80
+        ng.gain.setValueAtTime(0.08 + Math.random() * 0.06, t + i * 0.055)
+        ng.gain.exponentialRampToValueAtTime(0.001, t + i * 0.055 + 0.04)
+        nb.connect(bf); bf.connect(ng); ng.connect(ctx.destination)
+        nb.start(t + i * 0.055); nb.stop(t + i * 0.055 + 0.06)
+      }
+
+      // G4 G4 C5 E5 G5 E5 G5 — classic military bugle fanfare
+      const notes = [
+        { f:392, dur:0.10, vol:0.18, at:0.72 },
+        { f:392, dur:0.10, vol:0.18, at:0.84 },
+        { f:523, dur:0.14, vol:0.22, at:0.97 },
+        { f:659, dur:0.14, vol:0.24, at:1.13 },
+        { f:784, dur:0.28, vol:0.28, at:1.29 },
+        { f:659, dur:0.12, vol:0.22, at:1.60 },
+        { f:784, dur:0.40, vol:0.32, at:1.74 },
+      ]
+      notes.forEach(({ f, dur, vol, at }) => {
+        const osc = ctx.createOscillator()
+        const osc2 = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'sawtooth'; osc.frequency.value = f
+        osc2.type = 'square'; osc2.frequency.value = f * 1.004
+        gain.gain.setValueAtTime(0, t + at)
+        gain.gain.linearRampToValueAtTime(vol, t + at + 0.02)
+        gain.gain.setValueAtTime(vol, t + at + dur - 0.04)
+        gain.gain.linearRampToValueAtTime(0, t + at + dur)
+        osc.connect(gain); osc2.connect(gain); gain.connect(ctx.destination)
+        osc.start(t + at); osc.stop(t + at + dur + 0.01)
+        osc2.start(t + at); osc2.stop(t + at + dur + 0.01)
+      })
+
+      // Final bass drum thud on G5 hold
+      const bd = ctx.createOscillator()
+      const bg = ctx.createGain()
+      bd.type = 'sine'; bd.frequency.setValueAtTime(120, t + 1.74)
+      bd.frequency.exponentialRampToValueAtTime(40, t + 2.2)
+      bg.gain.setValueAtTime(0.5, t + 1.74)
+      bg.gain.exponentialRampToValueAtTime(0.001, t + 2.2)
+      bd.connect(bg); bg.connect(ctx.destination)
+      bd.start(t + 1.74); bd.stop(t + 2.3)
+    } catch(e) {}
+  }
+
+
   // ── CONVOY DISPATCH ─────────────────────────────────────────────────────────
   playConvoyDispatch() {
     try {

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import AudioEngine from '../../engine/AudioEngine'
 
 interface Props { onStart: () => void }
 
@@ -10,14 +11,19 @@ export default function SplashScreen({ onStart }: Props) {
     const timers = [
       setTimeout(() => setPhase(1), 400),
       setTimeout(() => setPhase(2), 1200),
-      setTimeout(() => setPhase(3), 2200),
+      setTimeout(() => {
+        // Fanfare fires when logo fully visible — user tap already happened on mobile
+        AudioEngine.resume()
+        AudioEngine.playMilitaryFanfare()
+        setPhase(3)
+      }, 2200),
       setTimeout(() => setPhase(4), 3400),
     ]
     return () => timers.forEach(clearTimeout)
   }, [])
 
   return (
-    <div onClick={phase >= 4 ? onStart : undefined} style={{
+    <div onClick={phase >= 4 ? () => { AudioEngine.resume(); onStart() } : () => { AudioEngine.resume(); AudioEngine.playMilitaryFanfare() }} style={{
       position:'fixed', inset:0, background:'#050e06',
       display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
       cursor: phase >= 4 ? 'pointer' : 'default',
