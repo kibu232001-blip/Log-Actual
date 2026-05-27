@@ -1,0 +1,182 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@400;500&display=swap');
+
+:root {
+  --hud: #0d1f0f;
+  --hud2: #132415;
+  --hud3: #1a3020;
+  --hud4: #213828;
+  --green: #2ecc71;
+  --green2: #27ae60;
+  --amber: #f39c12;
+  --red: #e74c3c;
+  --blue: #3498db;
+  --text: #c8e6c9;
+  --muted: #7aab7e;
+  --border: #2d5a32;
+  --topbar-h: 48px;
+  --sidebar-w: 280px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root { height: 100%; overflow: hidden; }
+
+body {
+  background: var(--hud);
+  color: var(--text);
+  font-family: 'Barlow', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono { font-family: 'Share Tech Mono', monospace; }
+.cond { font-family: 'Barlow Condensed', sans-serif; }
+
+/* ── LAYOUT ── */
+
+.app-shell {
+  display: grid;
+  grid-template-rows: var(--topbar-h) 1fr;
+  height: 100vh;
+}
+
+.main-layout {
+  display: grid;
+  grid-template-columns: 1fr var(--sidebar-w);
+  overflow: hidden;
+}
+
+/* ── STATUS COLORS ── */
+
+.status-green  { color: var(--green); }
+.status-amber  { color: var(--amber); }
+.status-red    { color: var(--red); }
+.status-blue   { color: var(--blue); }
+.status-muted  { color: var(--muted); }
+
+/* ── SECTION LABEL ── */
+
+.section-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+/* ── BUTTONS ── */
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: 6px;
+}
+
+.btn-primary {
+  background: rgba(46, 204, 113, 0.12);
+  border-color: var(--green2);
+  color: var(--green);
+}
+.btn-primary:hover { background: rgba(46, 204, 113, 0.25); }
+
+.btn-secondary {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--muted);
+}
+.btn-secondary:hover { border-color: var(--muted); color: var(--text); }
+
+.btn-danger {
+  background: rgba(231, 76, 60, 0.1);
+  border-color: rgba(231, 76, 60, 0.35);
+  color: var(--red);
+}
+.btn-danger:hover { background: rgba(231, 76, 60, 0.2); }
+
+/* ── MODAL OVERLAY ── */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 15, 6, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-card {
+  background: var(--hud2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 24px;
+  max-width: 480px;
+  width: 94%;
+  max-height: 92vh;
+  overflow-y: auto;
+}
+
+/* ── READINESS BAR ── */
+
+.readiness-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.readiness-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+/* ── SUPPLY BAR ── */
+
+.supply-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 3px 0;
+}
+
+.supply-fill {
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* ── ANIMATIONS ── */
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@keyframes convoy-dash {
+  to { stroke-dashoffset: -20; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.stonewall-pulse { animation: pulse-red 1.4s ease-in-out infinite; }
+.fade-in { animation: fade-in 0.3s ease forwards; }
