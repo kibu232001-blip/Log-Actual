@@ -260,23 +260,37 @@ export const useGameStore = create<Store>((set,get)=>({
   startAutoAdvance:()=>{
     const ex=get()._timerInterval; if(ex) clearInterval(ex)
     const iv=setInterval(()=>{
-      const s=get(); if(s.isPaused||s.isGameOver) return
-      const next=s.secondsToNextDay-1
-      if(next<=0){
-        try { get().advanceTurn() } catch(e) { console.error('[advanceTurn]',e) }
-        set({secondsToNextDay:120})  // ALWAYS reset even on error
-      }
-      else set({secondsToNextDay:next})
-    },1000)
+      // Use updater form — always reads fresh state, never stale closure
+      set(s => {
+        if(s.isPaused || s.isGameOver) return {}
+        const next = s.secondsToNextDay - 1
+        if(next <= 0){
+          // Call advanceTurn outside set() via setTimeout to avoid nested state mutations
+          setTimeout(()=>{
+            try {
+              get().advanceTurn()
+            } catch(e){
+              console.error('[advanceTurn ERROR]', e)
+              // Emergency fallback: at minimum increment the day so game doesn't freeze
+              set(st => ({
+                currentDay: Math.min(st.currentDay + 1, st.totalDays),
+                secondsToNextDay: 120,
+              }))
+            }
+          }, 0)
+          return { secondsToNextDay: 120 }
+        }
+        return { secondsToNextDay: next }
+      })
+    }, 1000)
     set({_timerInterval:iv, autoAdvanceEnabled:true, secondsToNextDay:120})
   },
 
   stopAutoAdvance:()=>{ const iv=get()._timerInterval; if(iv) clearInterval(iv); const tiv=get()._tacticalInterval; if(tiv) clearInterval(tiv); set({_timerInterval:null, _tacticalInterval:null, autoAdvanceEnabled:false}) },
 
   advanceTurn:()=>{
-    const s=get(); if(s.isPaused||s.isGameOver) return
-    // Every advanceTurn call = 1 campaign day. No phase gating.
-    const advancing=true
+    const s=get()
+    if(s.isPaused||s.isGameOver) return
     const nextDay=s.currentDay+1
     const over=nextDay>s.totalDays
 
@@ -284,11 +298,11 @@ export const useGameStore = create<Store>((set,get)=>({
     let newConvoys=[...(s.realConvoys||[])]
     let updatedAOs=(s.enemyAOs||[]).filter((ao:any)=>ao.expiresDay>nextDay)
 
-    // ── LOAD SCENARIO META FOR THIS DAY ──
-    const meta = getScenarioMeta(s.activeScenarioId || 'CAMPAIGN_1')
+    // ── LOAD SCENARIO META ──────────────────────────────────────────────────
+    let meta: any = { totalDays:30, enemyActivityLevel:0.35 }
+    try { meta = getScenarioMeta(s.activeScenarioId || 'CAMPAIGN_1') } catch(e) {}
 
-    if(advancing){
-      // ── CONSUME SUPPLY (with scenario modifiers) ──
+    // ── CONSUME SUPPLY (with scenario modifiers) ──
       updatedUnits=Object.fromEntries(
         Object.entries(s.units).map(([id,unit])=>{
           const nl={...unit.supplyLevels}
@@ -416,7 +430,6 @@ export const useGameStore = create<Store>((set,get)=>({
           set({pendingCommanderEvent:ev})
         }
       }
-    }
 
     // ── END GAME CONDITIONS ──────────────────────────────────────────────────
       const darkUnits   = Object.values(updatedUnits).filter(u=>u.isDark||u.status==='DARK').length
