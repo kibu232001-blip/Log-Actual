@@ -14,19 +14,35 @@ import CampaignAAR from './components/Campaign/CampaignAAR'
 import CommanderPopup from './components/Commanders/CommanderPopup'
 import CommanderDecisionModal from './components/Events/CommanderDecisionModal'
 import MobileHUD from './components/HUD/MobileHUD'
+import { FlashModal } from './components/TheaterMap/NewsFeedSystem'
 import { useGameStore } from './store/gameStore'
 
 type Screen = 'CINEMATIC' | 'SPLASH' | 'MISSION_SELECT' | 'MISSION_BRIEF' | 'DEPLOYING' | 'GAME'
 
 export default function App() {
-  const [screen, setScreen]     = useState<Screen>('CINEMATIC')
-  const [scenario, setScenario] = useState<MissionScenario | null>(null)
+  const [screen, setScreen]       = useState<Screen>('CINEMATIC')
+  const [scenario, setScenario]   = useState<MissionScenario | null>(null)
+  const [flashEvent, setFlashEvent] = useState<any>(null)
+  const seenFlashIds = React.useRef<Set<string>>(new Set())
+
   const {
     showDecisionModal, showResultCard, showAAR, resetGame,
     pendingCommanderEvent, dismissCommanderEvent, actionCommanderEvent,
   } = useGameStore()
   const pendingDecisionEvent = useGameStore(s => (s as any).pendingDecisionEvent)
   const clearDecisionEvent   = useGameStore(s => (s as any).clearDecisionEvent)
+  const feedEvents           = useGameStore(s => (s as any).appliedBattlefieldEvents || []) as any[]
+
+  // Watch for FLASH/IMMEDIATE events and surface them as full-screen modal
+  React.useEffect(() => {
+    feedEvents.forEach((ev: any) => {
+      if (seenFlashIds.current.has(ev.id)) return
+      if (ev.priority === 'FLASH' || ev.priority === 'IMMEDIATE') {
+        seenFlashIds.current.add(ev.id)
+        if (!flashEvent) setFlashEvent(ev)
+      }
+    })
+  }, [feedEvents])
 
   const handleDeploy = () => {
     setScreen('DEPLOYING') // Show quote screen for 2.5s
@@ -92,6 +108,9 @@ export default function App() {
             onDismiss={() => dismissCommanderEvent()}
           />
         )}
+        {flashEvent && (
+          <FlashModal event={flashEvent} onDismiss={() => setFlashEvent(null)} />
+        )}
       </div>
     )
   }
@@ -118,6 +137,9 @@ export default function App() {
           onAction={actionCommanderEvent}
           onDismiss={() => dismissCommanderEvent()}
         />
+      )}
+      {flashEvent && (
+        <FlashModal event={flashEvent} onDismiss={() => setFlashEvent(null)} />
       )}
     </div>
   )

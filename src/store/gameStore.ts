@@ -69,6 +69,36 @@ function buildInitialState(scenarioId='CAMPAIGN_1'): GameState & { realConvoys:R
   const locs      = CAMPAIGN_1_LOCS.reduce((a,l)=>({...a,[l.id]:l}),{})
   const meta      = getScenarioMeta(scenarioId)
   const sw=calcSW(units),rct=calcRCT(units),sigma=calcSigma(sw,rct),avg=calcAvg(units)
+
+  // Seed Day 1 intel — feed should never be empty on game start
+  const day1Events: any[] = [
+    {
+      id:'D1_SITREP', type:'INTEL',
+      title:'INITIAL THEATER ASSESSMENT — D01',
+      report:`Theater distribution network active. Starting sigma: ${sigma.toFixed(1)}σ. RCT baseline: ${rct}h. Enemy activity level: ${Math.round(meta.enemyActivityLevel*100)}%. Commander, the clock is running.`,
+      priority:'ROUTINE', severity:'MINOR', effects:[], affectedAssets:[],
+      acknowledged:false, mitigated:false, location:'THEATER', mitigationWindow:60,
+    },
+    {
+      id:'D1_WEATHER', type:'WEATHER',
+      title:'WEATHER BRIEF — D01',
+      report:'Current conditions CLEAR theater-wide. All LOCs and air corridors OPEN. Pre-position window active. Monitor for deterioration.',
+      priority:'ROUTINE', severity:'MINOR', effects:[], affectedAssets:[],
+      acknowledged:false, mitigated:false, location:'THEATER', mitigationWindow:60,
+    },
+    {
+      id:'D1_ENEMY', type:'INTEL',
+      title:`OPFOR ASSESSMENT — ACTIVITY ${Math.round(meta.enemyActivityLevel*100)}%`,
+      report: meta.enemyActivityLevel >= 0.5
+        ? 'Enemy forces actively interdicting LOCs. Ground convoy movement HIGH RISK on primary routes. Air alternatives strongly recommended.'
+        : meta.enemyActivityLevel >= 0.35
+        ? 'OPFOR conducting probing operations. LOC threat MEDIUM. Convoy escorts advised on forward routes.'
+        : 'Enemy threat LOW. Focus on process — every hour above the 48h USL is a readiness failure waiting to happen.',
+      priority: meta.enemyActivityLevel >= 0.5 ? 'PRIORITY' : 'ROUTINE',
+      severity:'MINOR', effects:[], affectedAssets:[],
+      acknowledged:false, mitigated:false, location:'FRONT', mitigationWindow:60,
+    },
+  ]
   return {
     campaignId:scenarioId, campaignName:scenarioId,
     currentDay:1, totalDays:meta.totalDays, currentPhase:'INTELLIGENCE',
@@ -76,7 +106,7 @@ function buildInitialState(scenarioId='CAMPAIGN_1'): GameState & { realConvoys:R
     pendingDecision:null, completedDecisions:[],
     metrics:{ avgReadiness:avg, stonewallRate:sw, avgRequestCycleTime:rct, sigmaLevel:sigma, doctrineAccuracy:0, forceMultiplierTotal:0 },
     metricsHistory:[], weather:'CLEAR', isGameOver:false, isPaused:false, showAAR:false,
-    realConvoys:[], mapFlyTarget:null as {lat:number;lng:number;zoom:number}|null, failureReason:null as string|null, pendingDecisionEvent:null as any, daysSinceLastAction:0, totalDecisionsMade:0, pendingCommanderEvent:null, firedCommanderEventIds:[], enemyAOs:[], enemyIntel:createInitialIntel(), lastEnemyAttacks:[], activeScenarioId:scenarioId, appliedBattlefieldEvents:[] as any[],
+    realConvoys:[], mapFlyTarget:null as {lat:number;lng:number;zoom:number}|null, failureReason:null as string|null, pendingDecisionEvent:null as any, daysSinceLastAction:0, totalDecisionsMade:0, pendingCommanderEvent:null, firedCommanderEventIds:[], enemyAOs:[], enemyIntel:createInitialIntel(), lastEnemyAttacks:[], activeScenarioId:scenarioId, appliedBattlefieldEvents:day1Events as any[],
   }
 }
 
@@ -414,6 +444,55 @@ export const useGameStore = create<Store>((set,get)=>({
     // Pending doctrine decision
     const pending=advancing?(CAMPAIGN_1_DECISIONS.find(d=>d.day===nextDay)??null):null
     const sw2=calcSW(updatedUnits),rct=calcRCT(updatedUnits),sigma=calcSigma(sw2,rct),avg=calcAvg(updatedUnits)
+
+    // ── MISSING VARS THAT WERE CRASHING ADVANCE ──────────────────────────────
+    // Weather: cycles based on day + scenario activity
+    const weatherRoll = Math.random()
+    const activityLevel = getScenarioMeta(s.activeScenarioId||'CAMPAIGN_1').enemyActivityLevel
+    const currentWeather = weatherRoll < 0.06 ? 'STORM'
+                         : weatherRoll < 0.15 ? 'FOG'
+                         : weatherRoll < 0.28 ? 'RAIN'
+                         : 'CLEAR'
+
+    // Days since last player action (convoy dispatch etc)
+    const daysSinceAction = (s.daysSinceLastAction ?? 0) + 1
+
+    // Build feed events from this day's activity
+    const existingEvents = (s.appliedBattlefieldEvents || []) as any[]
+    const dayEvents: any[] = []
+
+    // Add weather event if notable
+    if (currentWeather !== 'CLEAR') {
+      dayEvents.push({
+        id:`WX_${nextDay}_${Date.now()}`, type:'WEATHER',
+        title:`WEATHER UPDATE — D${nextDay} ${currentWeather}`,
+        report: currentWeather==='STORM' ? 'Storm conditions grounding air operations. Ground convoys restricted. All air corridors CLOSED.'
+               : currentWeather==='FOG'  ? 'Dense fog reducing visibility. Convoy speeds reduced 40%. Air operations at IFR minimums.'
+               : 'Rain affecting routes. Ground conditions AMBER. Air corridors open.',
+        priority: currentWeather==='STORM' ? 'PRIORITY' : 'ROUTINE',
+        severity: currentWeather==='STORM' ? 'MAJOR' : 'MINOR',
+        effects:[], affectedAssets:[], acknowledged:false, mitigated:false,
+        location:'THEATER', mitigationWindow:60,
+      })
+    }
+
+    // Add enemy attack events
+    enemyAttacks.forEach((atk:any) => {
+      if (atk.type) {
+        dayEvents.push({
+          id:`ATK_${atk.id||nextDay}_${Date.now()}`, type:'ATTACK',
+          title:`OPFOR CONTACT — ${atk.type} REPORTED D${nextDay}`,
+          report: atk.description || `Enemy activity on ${atk.targetLOC||'LOC'}. Convoy movement affected.`,
+          priority: atk.severity === 'HIGH' ? 'FLASH' : atk.severity === 'MEDIUM' ? 'PRIORITY' : 'ROUTINE',
+          severity: atk.severity||'MINOR',
+          effects: atk.effects||[], affectedAssets:[atk.targetLOC||''].filter(Boolean),
+          acknowledged:false, mitigated:false, location:'FRONT', mitigationWindow:60,
+          responseOptions: atk.responseOptions||[],
+        })
+      }
+    })
+
+    const newFeedEvents = [...dayEvents, ...existingEvents].slice(0, 60)
 
     set({
       currentDay:over?s.totalDays:nextDay,

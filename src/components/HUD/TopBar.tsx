@@ -184,13 +184,6 @@ export default function TopBar() {
 
       <div style={{ display:'flex', alignItems:'center', gap:8 }}>
         <Countdown seconds={secondsToNextDay}/>
-        <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
-          background:'#0d1f10', border:'1px solid #1a3a20', borderRadius:3,
-          padding:'3px 10px', minWidth:56 }}>
-          <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9, color:'#1a5a3a', letterSpacing:2 }}>DAY</span>
-          <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:22, color:'#00ff88', fontWeight:700, lineHeight:1.1 }}>{pad(currentDay)}</span>
-          <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:8, color:'#1a3a20' }}>/{totalDays}</span>
-        </div>
         <button onClick={isPaused ? resumeGame : pauseGame} style={{
           background: isPaused ? 'rgba(255,170,0,0.15)' : 'rgba(0,0,0,0.3)',
           border:`1px solid ${isPaused?'#ffaa00':'#1a3a20'}`,

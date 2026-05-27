@@ -105,7 +105,7 @@ function ToastStack({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id:str
 }
 
 // ── LAYER 3: FLASH INTERRUPT (FLASH) ─────────────────────────────────────────
-function FlashModal({ event, onDismiss }: { event: any; onDismiss: ()=>void }) {
+export function FlashModal({ event, onDismiss }: { event: any; onDismiss: ()=>void }) {
   const advanceTurn = useGameStore(s => s.advanceTurn)
   return (
     <div style={{
@@ -236,9 +236,6 @@ export default function NewsFeedSystem() {
     <>
       <TickerBar events={routineEvents} />
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
-      {flashEvent && (
-        <FlashModal event={flashEvent} onDismiss={() => setFlashEvent(null)} />
-      )}
     </>
   )
 }

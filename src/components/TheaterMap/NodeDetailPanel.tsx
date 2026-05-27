@@ -139,7 +139,28 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
   }
 
   return(
-    <div style={{position:'absolute',top:10,right:8,zIndex:2000,width:340,maxHeight:'calc(100% - 80px)',background:'rgba(3,12,8,.97)',border:`1px solid ${statusColor}50`,borderTop:`2px solid ${statusColor}`,borderRadius:4,display:'flex',flexDirection:'column',fontFamily:'Barlow Condensed,sans-serif',boxShadow:`0 0 30px ${statusColor}18,0 4px 20px rgba(0,0,0,.8)`,overflow:'hidden'}}>
+    <div style={{
+      position:'fixed',
+      // Mobile: full-width bottom sheet
+      ...(window.innerWidth < 768 ? {
+        bottom:0, left:0, right:0, top:'auto',
+        maxHeight:'72vh', borderRadius:'12px 12px 0 0',
+        borderTop:`2px solid ${statusColor}`,
+        borderLeft:`1px solid ${statusColor}30`,
+        borderRight:`1px solid ${statusColor}30`,
+      } : {
+        top:10, right:8, width:340, maxHeight:'calc(100% - 80px)',
+        borderRadius:4, border:`1px solid ${statusColor}50`,
+        borderTop:`2px solid ${statusColor}`,
+      }),
+      zIndex:2000,
+      background:'rgba(3,12,8,.97)',
+      display:'flex', flexDirection:'column',
+      fontFamily:'Barlow Condensed,sans-serif',
+      boxShadow:`0 0 30px ${statusColor}18, 0 -4px 20px rgba(0,0,0,.8)`,
+      overflow:'hidden',
+      animation:'sheet-up .2s ease',
+    }}>
 
       {/* Header */}
       <div style={{padding:'11px 14px 9px',borderBottom:'1px solid rgba(255,255,255,.06)',background:`${statusColor}08`}}>
@@ -315,7 +336,7 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
           </div>
         )}
       </div>
-      <style>{`@keyframes sw-blink{0%,100%{opacity:1}50%{opacity:.3}}`}</style>
+      <style>{`@keyframes sw-blink{0%,100%{opacity:1}50%{opacity:.3}} @keyframes sheet-up{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
     </div>
   )
 }
