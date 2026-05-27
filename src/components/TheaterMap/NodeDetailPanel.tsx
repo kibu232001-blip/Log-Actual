@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import AudioEngine from '../../engine/AudioEngine'
 import { useGameStore } from '../../store/gameStore'
+import { getTheaterNetwork } from '../../data/scenarioNodes'
 
 interface NodeData { id:string; name:string; type:string; unitId:string|null; wx:number; wy:number }
 interface Props { node:NodeData; onClose:()=>void }
@@ -25,15 +26,66 @@ type ActionMode = null|'CONVOY'|'AIR'|'LATERAL'|'PRIORITY'
 // ── CONVOY DISPATCH — multi-class cargo builder ─────────────────────────────
 interface DispatchProps {
   node:any; unit:any; currentDay:number
-  onDispatch:(cargo:Array<{supplyClass:number;amount:number}>, assetType:string)=>void
+  onDispatch:(cargo:Array<{supplyClass:number;amount:number}>, assetType:string, sourceUnitId:string, routeId:string)=>void
   onCancel:()=>void
 }
 
 function ConvoyDispatch({ node, unit, currentDay, onDispatch, onCancel }: DispatchProps) {
   const [assetType, setAssetType] = React.useState<'GROUND'|'AIR'|'HELO'|'SEA'>('GROUND')
   const [loads, setLoads] = React.useState<number[]>([0,0,0,0,0,0,0])
-  const travelDays = assetType==='AIR'?1:assetType==='HELO'?1:assetType==='SEA'?3:2
+  const allUnits = useGameStore(s => Object.values(s.units) as any[])
+  const storeLocs = useGameStore(s => s.locs) as any
+  const activeScenarioId = useGameStore(s => (s as any).activeScenarioId || 'CAMPAIGN_1')
+  const weather = useGameStore(s => (s as any).weather || 'CLEAR')
+  const theater = getTheaterNetwork(activeScenarioId)
+
+  const sourceOptions = allUnits.filter((u:any) =>
+    u.id !== (node.unitId || node.id) &&
+    u.status !== 'DARK' &&
+    Math.max(u.supplyLevels?.CL_I||0, u.supplyLevels?.CL_III||0, u.supplyLevels?.CL_V||0) > 10
+  )
+  const [sourceId, setSourceId] = React.useState<string>(sourceOptions[0]?.id || '')
+  const [selectedRouteId, setSelectedRouteId] = React.useState<string>('')
+
+  // Find all LOCs that connect source → destination (direct or via hops)
+  const destId = node.unitId || node.id
+  const isAir = assetType === 'AIR' || assetType === 'HELO'
+  const availableRoutes = theater.locs.filter(loc =>
+    isAir ? loc.type === 'AIR' : loc.type !== 'AIR'
+  ).map(loc => {
+    const live = storeLocs ? (storeLocs as any)[loc.id] : null
+    return { ...loc, status: live?.status || loc.status }
+  })
+
+  // Routes relevant to this source→dest pair (direct), or all routes if no direct
+  const directRoutes = availableRoutes.filter(loc =>
+    (loc.from === sourceId && loc.to === destId) ||
+    (loc.to === sourceId && loc.from === destId)
+  )
+  const allRoutesForType = availableRoutes.filter(loc =>
+    loc.type === (isAir ? 'AIR' : 'GROUND')
+  )
+  const routesToShow = directRoutes.length > 0 ? directRoutes : allRoutesForType.slice(0, 4)
+
+  // Auto-select first open route when source or type changes
+  React.useEffect(() => {
+    const open = routesToShow.find(r => r.status !== 'INTERDICTED')
+    setSelectedRouteId(open?.id || routesToShow[0]?.id || '')
+  }, [sourceId, assetType])
+
+  const selectedRoute = routesToShow.find(r => r.id === selectedRouteId)
+  const routeBlocked = selectedRoute?.status === 'INTERDICTED'
+  const routeContested = selectedRoute?.status === 'CONTESTED'
+
   const totalLoad = loads.reduce((a,b)=>a+b,0)
+  const wMult = weather==='STORM'?1.5:weather==='FOG'?1.2:weather==='RAIN'?1.1:1.0
+  const base = isAir?1:assetType==='SEA'?3:totalLoad>60?3:2
+  const routePenalty = routeContested ? 1 : 0
+  const finalETA = Math.max(1, Math.round((base + routePenalty) * wMult))
+
+  const threatCol = (t:string) => t==='HIGH'?'#ff4444':t==='MEDIUM'?'#ffaa00':'#2d5a32'
+  const statusCol = (s:string) => s==='INTERDICTED'?'#ff2200':s==='CONTESTED'?'#ff8800':'#2d5a32'
+  const statusLabel = (s:string) => s==='INTERDICTED'?'⛔ BLOCKED':s==='CONTESTED'?'⚠ CONTESTED':'✓ OPEN'
 
   const assets = [
     { id:'GROUND', label:'GROUND CONVOY', icon:'🚛', color:'#00ff88', max:60 },
@@ -44,11 +96,9 @@ function ConvoyDispatch({ node, unit, currentDay, onDispatch, onCancel }: Dispat
   const selectedAsset = assets.find(a=>a.id===assetType)!
 
   const handleDispatch = () => {
-    const cargo = loads
-      .map((amt,i)=>({supplyClass:i,amount:amt}))
-      .filter(c=>c.amount>0)
-    if(cargo.length===0) return
-    onDispatch(cargo, assetType)
+    const cargo = loads.map((amt,i)=>({supplyClass:i,amount:amt})).filter(c=>c.amount>0)
+    if(cargo.length===0 || !sourceId || routeBlocked || !selectedRouteId) return
+    onDispatch(cargo, assetType, sourceId, selectedRouteId)
   }
 
   return(
@@ -56,6 +106,100 @@ function ConvoyDispatch({ node, unit, currentDay, onDispatch, onCancel }: Dispat
       <div style={{fontSize:13,color:selectedAsset.color,letterSpacing:1,fontWeight:700,fontFamily:'Barlow Condensed,sans-serif'}}>
         CONFIGURE CONVOY → {node.name}
       </div>
+
+      {/* ── SOURCE UNIT ── */}
+      <div style={{padding:'8px 10px',background:'rgba(0,0,0,0.3)',borderRadius:4,border:'1px solid #1a3a20'}}>
+        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:2,marginBottom:6}}>① SUPPLY SOURCE — SELECT DONOR UNIT</div>
+        <div style={{display:'flex',flexDirection:'column',gap:3}}>
+          {sourceOptions.length === 0 && (
+            <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:'#ff4444'}}>NO VIABLE SOURCE UNITS</div>
+          )}
+          {sourceOptions.map((u:any) => {
+            const s3 = Math.round(u.supplyLevels?.CL_III||0)
+            const s1 = Math.round(u.supplyLevels?.CL_I||0)
+            const s5 = Math.round(u.supplyLevels?.CL_V||0)
+            const minS = Math.min(s1,s3,s5)
+            const col = minS>60?'#00ff88':minS>30?'#ffaa00':'#ff6644'
+            const isSel = sourceId === u.id
+            return (
+              <button key={u.id} onClick={()=>setSourceId(u.id)} style={{
+                display:'flex',justifyContent:'space-between',alignItems:'center',
+                padding:'6px 8px',borderRadius:3,cursor:'pointer',textAlign:'left',
+                background:isSel?`${col}18`:'rgba(0,0,0,0.2)',
+                border:`${isSel?2:1}px solid ${isSel?col:'#1a3a20'}`,
+                WebkitTapHighlightColor:'transparent',
+              }}>
+                <div>
+                  <div style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:14,color:isSel?col:'#4a7a54'}}>{u.shortName||u.name}</div>
+                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',marginTop:1}}>
+                    CL I:{s1}% · CL III:{s3}% · CL V:{s5}%
+                  </div>
+                </div>
+                <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:13,color:col,fontWeight:700}}>{minS}%</div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── ROUTE SELECTION ── */}
+      <div style={{padding:'8px 10px',background:'rgba(0,0,0,0.3)',borderRadius:4,border:'1px solid #1a3a20'}}>
+        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:2,marginBottom:6}}>② SELECT ROUTE / MSR</div>
+        {routesToShow.length === 0 ? (
+          <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:'#ff8800'}}>NO {isAir?'AIR':'GROUND'} ROUTES AVAILABLE</div>
+        ) : (
+          <div style={{display:'flex',flexDirection:'column',gap:3}}>
+            {routesToShow.map(loc => {
+              const isSel = selectedRouteId === loc.id
+              const sCol = statusCol(loc.status)
+              const tCol = threatCol(loc.threat)
+              return (
+                <button key={loc.id} onClick={()=>setSelectedRouteId(loc.id)} style={{
+                  display:'grid',gridTemplateColumns:'1fr auto auto',gap:8,alignItems:'center',
+                  padding:'7px 8px',borderRadius:3,cursor:'pointer',textAlign:'left',
+                  background:isSel?`${sCol}15`:'rgba(0,0,0,0.2)',
+                  border:`${isSel?2:1}px solid ${isSel?sCol:'#1a3a20'}`,
+                  WebkitTapHighlightColor:'transparent',
+                }}>
+                  <div>
+                    <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,fontWeight:700,color:isSel?sCol:'#4a7a54'}}>
+                      {loc.id.toUpperCase()} — {loc.from} → {loc.to}
+                    </div>
+                    <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',marginTop:1}}>
+                      {loc.cargo}
+                    </div>
+                  </div>
+                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:tCol,textAlign:'right'}}>
+                    {loc.threat} THREAT
+                  </div>
+                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:sCol,textAlign:'right',minWidth:70}}>
+                    {statusLabel(loc.status)}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── ROUTE RISK SUMMARY ── */}
+      {selectedRoute && (
+        <div style={{
+          padding:'6px 10px',borderRadius:3,
+          background:routeBlocked?'rgba(255,0,0,0.1)':routeContested?'rgba(255,136,0,0.08)':'rgba(0,255,0,0.03)',
+          border:`1px solid ${routeBlocked?'#ff2200':routeContested?'#ff8800':'#1a3a20'}`,
+          fontFamily:'Share Tech Mono,monospace',fontSize:9,letterSpacing:1,
+        }}>
+          <div style={{color:routeBlocked?'#ff2200':routeContested?'#ff8800':'#2d5a32'}}>
+            {routeBlocked ? '⛔ THIS ROUTE IS INTERDICTED — CONVOY CANNOT MOVE' :
+             routeContested ? '⚠ ROUTE CONTESTED — AMBUSH RISK · +1 DAY DELAY' :
+             `✓ ROUTE CLEAR — ETA D+${finalETA}${weather!=='CLEAR'?' ('+weather+')':''}`}
+          </div>
+          {(routeBlocked||routeContested)&&!isAir&&(
+            <div style={{color:'#444',marginTop:3}}>Switch to AIR SORTIE to bypass ground interdiction</div>
+          )}
+        </div>
+      )}
 
       {/* Asset type selector */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
@@ -91,14 +235,20 @@ function ConvoyDispatch({ node, unit, currentDay, onDispatch, onCancel }: Dispat
       {totalLoad===0&&<div style={{fontSize:10,color:'#ff4444',fontFamily:'Share Tech Mono,monospace',textAlign:'center'}}>SELECT AT LEAST ONE CLASS TO LOAD</div>}
 
       <div style={{display:'flex',justifyContent:'space-between',fontFamily:'Share Tech Mono,monospace',fontSize:10,color:'#1a5a3a',padding:'4px 0',borderTop:'1px solid #1a3a20'}}>
-        <span>TOTAL LOAD: {totalLoad}%</span>
-        <span>ETA: D+{travelDays}</span>
+        <span>TOTAL LOAD: {totalLoad}%{totalLoad > 60 && !isAir ? ' ⚠ HEAVY' : ''}</span>
+        <span>ETA: D+{finalETA}{weather !== 'CLEAR' ? ` (${weather})` : ''}</span>
       </div>
 
       <div style={{display:'flex',gap:6}}>
-        <button onClick={handleDispatch} disabled={totalLoad===0}
-          style={{flex:1,padding:'9px',background:totalLoad>0?`${selectedAsset.color}20`:'rgba(0,0,0,.3)',border:`1px solid ${totalLoad>0?selectedAsset.color:'#1a3a20'}`,color:totalLoad>0?selectedAsset.color:'#1a4a2a',fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:13,letterSpacing:2,borderRadius:3,cursor:totalLoad>0?'pointer':'not-allowed'}}>
-          {selectedAsset.icon} DISPATCH {assetType}
+        <button onClick={handleDispatch}
+          disabled={totalLoad===0 || routeBlocked || !sourceId || !selectedRouteId}
+          style={{flex:1,padding:'9px',
+            background: routeBlocked ? 'rgba(255,0,0,0.1)' : totalLoad>0&&sourceId ? `${selectedAsset.color}20` : 'rgba(0,0,0,.3)',
+            border:`1px solid ${routeBlocked?'#ff2200':totalLoad>0&&sourceId?selectedAsset.color:'#1a3a20'}`,
+            color: routeBlocked?'#ff4444':totalLoad>0&&sourceId?selectedAsset.color:'#1a4a2a',
+            fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:13,letterSpacing:2,borderRadius:3,
+            cursor:routeBlocked||totalLoad===0||!sourceId?'not-allowed':'pointer'}}>
+          {routeBlocked ? '⛔ ROUTE BLOCKED' : `${selectedAsset.icon} DISPATCH ${assetType}`}
         </button>
         <button onClick={onCancel} style={{padding:'9px 12px',background:'transparent',border:'1px solid #1a3a20',color:'#1a5a3a',fontFamily:'Barlow Condensed,sans-serif',fontSize:12,borderRadius:3,cursor:'pointer'}}>✕</button>
       </div>
@@ -341,11 +491,10 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
               node={node}
               unit={unit}
               currentDay={currentDay}
-              onDispatch={(cargo, assetType)=>{
-                const dispatchConvoy = (window as any).__dispatchConvoy
+              onDispatch={(cargo, assetType, sourceUnitId, routeId)=>{
+                const dispatchConvoy = useGameStore.getState().dispatchConvoy
                 if(dispatchConvoy) {
-                  const depotId = 'DEP_BYD'  // nearest depot
-                  dispatchConvoy(depotId, node.unitId||node.id, cargo, assetType)
+                  dispatchConvoy(sourceUnitId || 'DEP_BYD', node.unitId||node.id, cargo, assetType)
                 }
                 const cls = ['CL I','CL II','CL III','CL IV','CL V','CL VIII','CL IX']
                 const desc = cargo.map((c:any)=>`${cls[c.supplyClass]}:${c.amount}%`).join(' ')

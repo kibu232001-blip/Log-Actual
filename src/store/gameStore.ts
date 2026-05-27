@@ -948,6 +948,26 @@ export const useGameStore = create<Store>((set,get)=>({
       travelDays, isAir, assetType,
       status:'EN_ROUTE' as const, progress:0,
     }
+
+    // ── DEDUCT FROM SOURCE UNIT IMMEDIATELY ──────────────────────────────────
+    // Supplies are removed from source the moment the convoy departs
+    const updatedUnitsDispatch = { ...s.units }
+    const sourceUnit = (updatedUnitsDispatch as any)[fromNodeId]
+    if (sourceUnit) {
+      const newLvls = { ...sourceUnit.supplyLevels }
+      cargo.forEach((item: {supplyClass:number; amount:number}) => {
+        const classKeys = ['CL_I','CL_II','CL_III','CL_IV','CL_V','CL_VIII','CL_IX']
+        const key = classKeys[item.supplyClass]
+        if (key) newLvls[key] = Math.max(0, (newLvls[key] || 0) - item.amount)
+      })
+      const newR = Math.max(0, Math.min(100,
+        (newLvls.CL_I + newLvls.CL_III + newLvls.CL_V) / 3
+      ))
+      ;(updatedUnitsDispatch as any)[fromNodeId] = {
+        ...sourceUnit, supplyLevels: newLvls,
+        readiness: Math.round(newR), status: getStatus(newR),
+      }
+    }
     // Teach enemy AI about this route — they will react
     const intel = (get() as any).enemyIntel || createInitialIntel()
     const routeKey = `${fromNodeId}_${toUnitId}`
@@ -971,6 +991,7 @@ export const useGameStore = create<Store>((set,get)=>({
     }
 
     set(st=>({
+      units: sourceUnit ? updatedUnitsDispatch : st.units,
       realConvoys:[...((st as any).realConvoys||[]),newConvoy],
       enemyIntel: intel,
       convoyStats: { ...(st as any).convoyStats, dispatched:(((st as any).convoyStats?.dispatched)??0)+1 },
