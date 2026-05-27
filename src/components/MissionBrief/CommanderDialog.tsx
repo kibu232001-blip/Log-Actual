@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { BriefingTeam, BriefingCharacter, BriefingSection } from '../../data/briefingTeams'
+import AudioEngine from '../../engine/AudioEngine'
 
 function Portrait({ style, color }: { style: string; color: string }) {
   const extras: Record<string,string> = {
@@ -19,9 +20,19 @@ function TypeWriter({ text, speed=32, onDone }: { text:string; speed?:number; on
   const [finished, setFinished] = useState(false)
   useEffect(() => {
     setShown(''); setFinished(false); let i=0
+    // Radio squelch open
+    AudioEngine.resume()
+    AudioEngine.playConvoyDispatch()
     const t = setInterval(()=>{
       i++; setShown(text.slice(0,i))
-      if(i>=text.length){ clearInterval(t); setFinished(true) }
+      // Subtle blip every 3 chars for texture
+      if (i % 3 === 0) AudioEngine.playTick(false)
+      if(i>=text.length){
+        clearInterval(t)
+        setFinished(true)
+        // Radio squelch close
+        setTimeout(() => AudioEngine.playTick(false), 80)
+      }
     }, speed)
     return ()=>clearInterval(t)
   }, [text])

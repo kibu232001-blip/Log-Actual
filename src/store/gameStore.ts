@@ -605,16 +605,27 @@ export const useGameStore = create<Store>((set,get)=>({
 
     const newFeedEvents = [...dayEvents, ...existingEvents].slice(0, 60)
 
+    // ── VICTORY GRADING ──────────────────────────────────────────────────────
+    const victorySigma    = sigma >= 3.0 ? 'DISTINGUISHED' : sigma >= 2.0 ? 'COMMENDABLE' : sigma >= 1.5 ? 'MARGINAL' : 'FAILED'
+    const victoryReadiness= avg >= 70 ? 'EXCELLENT' : avg >= 50 ? 'ADEQUATE' : 'DEGRADED'
+    const victoryRCT      = rct <= 32 ? 'OPTIMAL' : rct <= 48 ? 'ACCEPTABLE' : 'EXCEEDS_USL'
+    const campaignVictory = over && !campaignFailed
+    const campaignGrade   = campaignVictory
+      ? (sigma >= 3.0 && rct <= 32 ? 'A' : sigma >= 2.5 ? 'B' : sigma >= 2.0 ? 'C' : 'D')
+      : 'F'
+
     set({
       currentDay:over?s.totalDays:nextDay,
-      currentPhase:'EXECUTION',
+      currentPhase: over ? 'COMPLETE' : 'EXECUTION',
       units:updatedUnits,
       pendingDecision:pending,
       metrics:{...s.metrics,avgReadiness:avg,stonewallRate:sw2,avgRequestCycleTime:rct,sigmaLevel:sigma},
-      showDecisionModal:pending!==null,
+      showDecisionModal:pending!==null && !over && !campaignFailed,
       isGameOver:over || campaignFailed,
       showAAR:over || campaignFailed,
       failureReason:(campaignFailed ? failureReason : null) as any,
+      campaignVictory, campaignGrade,
+      victorySigma, victoryReadiness, victoryRCT,
       realConvoys:newConvoys,
       enemyAOs:updatedAOs,
       enemyIntel:intel,
@@ -722,6 +733,30 @@ export const useGameStore = create<Store>((set,get)=>({
     const s=get()
     const travelDays = assetType==='AIR'?1:assetType==='HELO'?1:assetType==='SEA'?3:2
     const isAir = assetType==='AIR'||assetType==='HELO'
+
+    // ── PERMANENT LOC INTERDICTION CHECK ──────────────────────────────────────
+    // Find the LOC connecting from→to and block if interdicted (except air assets)
+    if (!isAir) {
+      const locs = (s.locs || {}) as Record<string, any>
+      const matchedLOC = Object.values(locs).find((loc:any) =>
+        (loc.from === fromNodeId || loc.to === fromNodeId) &&
+        (loc.from === toUnitId   || loc.to === toUnitId   || loc.to === fromNodeId)
+      ) as any
+      if (matchedLOC && matchedLOC.status === 'INTERDICTED') {
+        // Block dispatch — add feed event telling player why
+        const blockEvent = {
+          id:`BLOCK_${Date.now()}`, type:'LOGREP',
+          title:`CONVOY BLOCKED — LOC INTERDICTED`,
+          report:`Ground convoy to ${toUnitId} cannot proceed. LOC is under active interdiction. Use AIR RESUPPLY or clear the route first.`,
+          priority:'PRIORITY', severity:'MAJOR',
+          effects:[], affectedAssets:[toUnitId],
+          acknowledged:false, mitigated:false, location:'FRONT', mitigationWindow:0,
+        }
+        set(st=>({ appliedBattlefieldEvents:[blockEvent,...((st as any).appliedBattlefieldEvents||[])].slice(0,60) }))
+        return  // Abort dispatch
+      }
+    }
+
     // Find LOC connecting from→to
     const locId = `direct_${fromNodeId}_${toUnitId}`
     const newConvoy = {

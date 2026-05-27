@@ -108,7 +108,30 @@ export default function TopBar() {
             fontSize:13, color:'#00ff88', letterSpacing:1, flexShrink:0,
           }}>D{pad(currentDay)}/{totalDays}</div>
 
-          {/* Phase badge — short label only */}
+          {/* Campaign countdown pressure bar */}
+          {(() => {
+            const pct = (currentDay / totalDays) * 100
+            const daysLeft = totalDays - currentDay
+            const urgentColor = daysLeft <= 3 ? '#ff2200' : daysLeft <= 7 ? '#ff8800' : daysLeft <= 12 ? '#ffcc00' : '#00ff88'
+            return (
+              <div style={{ flex:1, display:'flex', flexDirection:'column', gap:2, padding:'0 4px' }}>
+                <div style={{ height:4, background:'rgba(255,255,255,0.06)', borderRadius:2, overflow:'hidden' }}>
+                  <div style={{
+                    height:'100%', width:`${pct}%`, borderRadius:2,
+                    background:urgentColor,
+                    boxShadow:`0 0 6px ${urgentColor}80`,
+                    transition:'width 0.8s ease',
+                    animation: daysLeft <= 3 ? 'sw-blink 0.6s infinite' : undefined,
+                  }}/>
+                </div>
+                {daysLeft <= 7 && (
+                  <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:8, color:urgentColor, letterSpacing:1, textAlign:'center', animation: daysLeft <= 3 ? 'sw-blink 0.6s infinite' : undefined }}>
+                    {daysLeft}D REMAINING
+                  </div>
+                )}
+              </div>
+            )
+          })()}
           <div style={{
             padding:'2px 8px', borderRadius:3, flexShrink:0,
             background:`${phase.color}12`, border:`1px solid ${phase.color}40`,

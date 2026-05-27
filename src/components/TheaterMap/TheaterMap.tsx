@@ -7,6 +7,7 @@ import BattlefieldFeed from './BattlefieldFeed'
 import WeatherOverlay from './WeatherOverlay'
 import AttackAnimations from './AttackAnimations'
 import { getTheaterNetwork, TheaterNode, TheaterLOC } from '../../data/scenarioNodes'
+import AudioEngine from '../../engine/AudioEngine'
 import NewsFeedSystem from './NewsFeedSystem'
 
 const SC: Record<string,string> = {
@@ -160,6 +161,55 @@ export default function TheaterMap({ onBack }: Props) {
   const progRef     = useRef<Record<string,number>>({})
   const conflictRef = useRef<Record<string,number>>({})
   const [showBackConfirm, setShowBackConfirm] = useState(false)
+  const [redForceWarning, setRedForceWarning] = useState<string|null>(null)
+  const [screenShake, setScreenShake]         = useState(false)
+  const lastAttacksRef = useRef<any[]>([])
+  const lastSWRef      = useRef(0)
+
+  // Combat cam — auto-zoom to enemy attack location
+  const lastEnemyAttacks = useGameStore(s => (s as any).lastEnemyAttacks || [])
+  useEffect(() => {
+    if (!lastEnemyAttacks.length || !mapInst.current) return
+    const newAttacks = lastEnemyAttacks.filter((a:any) =>
+      !lastAttacksRef.current.find((old:any) => old.id === a.id)
+    )
+    lastAttacksRef.current = lastEnemyAttacks
+    if (newAttacks.length > 0) {
+      const atk = newAttacks[0]
+      if (atk.mapMarker) {
+        // Brief zoom to attack site
+        mapInst.current.flyTo([atk.mapMarker.lat, atk.mapMarker.lng], 8, { duration:1.2 })
+        setTimeout(() => {
+          mapInst.current?.flyTo([theater.mapCenter[0], theater.mapCenter[1]], theater.mapZoom, { duration:1.5 })
+        }, 3500)
+      }
+      AudioEngine.playEnemyAttack()
+      // Show RED FORCE banner
+      setRedForceWarning(`RED FORCE ACTIVITY — ${atk.type || 'INTERDICTION'} DETECTED`)
+      setTimeout(() => setRedForceWarning(null), 4000)
+    }
+  }, [lastEnemyAttacks])
+
+  // Screen shake — listens for CustomEvent from ANY component
+  useEffect(() => {
+    const handleShake = (e: Event) => {
+      setScreenShake(true)
+      const dur = ((e as CustomEvent).detail?.intensity || 10) < 8 ? 400 : 650
+      setTimeout(() => setScreenShake(false), dur)
+    }
+    window.addEventListener('TRIGGER_SCREEN_SHAKE', handleShake)
+    return () => window.removeEventListener('TRIGGER_SCREEN_SHAKE', handleShake)
+  }, [])
+
+  // Screen shake on stonewall entry
+  useEffect(() => {
+    const swCount = Object.values(units).filter((u:any) => u.status === 'STONEWALL').length
+    if (swCount > lastSWRef.current) {
+      AudioEngine.playStonewallAlarm()
+      window.dispatchEvent(new CustomEvent('TRIGGER_SCREEN_SHAKE', { detail: { intensity: 14 } }))
+    }
+    lastSWRef.current = swCount
+  }, [units])
 
   const [pos, setPos]           = useState<NodePos>({})
   const [zoom, setZoom]         = useState(theater.mapZoom)
@@ -312,8 +362,37 @@ export default function TheaterMap({ onBack }: Props) {
   const cs=zoom>=10?20:zoom>=9?16:zoom>=8?13:zoom>=7?10:7
 
   return(
-    <div style={{flex:1,display:'flex',overflow:'hidden',position:'relative',height:'100%'}}>
-      <style>{MAP_CSS}</style>
+    <div style={{
+      flex:1, display:'flex', overflow:'hidden', position:'relative', height:'100%',
+      animation: screenShake ? 'screen-shake 0.5s ease' : undefined,
+    }}>
+      <style>{MAP_CSS + `
+        @keyframes screen-shake {
+          0%,100%{transform:translate(0,0)}
+          15%{transform:translate(-4px,2px)}
+          30%{transform:translate(4px,-2px)}
+          45%{transform:translate(-3px,3px)}
+          60%{transform:translate(3px,-1px)}
+          75%{transform:translate(-2px,2px)}
+          90%{transform:translate(2px,-1px)}
+        }
+      `}</style>
+
+      {/* ── RED FORCE WARNING BANNER ── */}
+      {redForceWarning && (
+        <div style={{
+          position:'absolute', top:0, left:0, right:0, zIndex:500,
+          background:'rgba(180,0,0,0.92)', borderBottom:'2px solid #ff2200',
+          padding:'7px 16px', display:'flex', alignItems:'center', gap:10,
+          animation:'redforce-in 0.3s ease, redforce-out 0.5s ease 3.5s forwards',
+          fontFamily:'Share Tech Mono,monospace', letterSpacing:3,
+        }}>
+          <span style={{fontSize:14, color:'#ff4444', animation:'sw-pulse 0.6s infinite'}}>◉</span>
+          <span style={{fontSize:11, color:'#fff', fontWeight:700}}>{redForceWarning}</span>
+          <span style={{marginLeft:'auto', fontSize:9, color:'rgba(255,255,255,0.5)'}}>REROUTE OR REINFORCE</span>
+        </div>
+      )}
+
       <div ref={svgRef} style={{flex:1,position:'relative',overflow:'hidden'}}>
         <div ref={mapRef} style={{position:'absolute',inset:0,zIndex:0}}/>
 
@@ -344,10 +423,21 @@ export default function TheaterMap({ onBack }: Props) {
             const isAir=loc.type==='AIR'
             const col=isSea?'#4488ff':isAir?'#00aaff':'#00ee77'
             const filt=isAir||isSea?'url(#fb)':'url(#fg)'
+            const flowLen = isSea ? '20,12' : isAir ? '12,8' : '16,10'
+            const flowDur = isSea ? '3s' : isAir ? '2s' : '2.5s'
             return(
               <g key={loc.id}>
-                <line x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke={col} strokeWidth={isSea?8:isAir?8:12} opacity=".07" filter={filt}/>
-                <line x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke={col} strokeWidth={isSea?1.5:isAir?1.5:2.5} strokeDasharray={isSea?'12,8':isAir?'7,6':undefined} opacity={isSea?.45:isAir?.55:.9} filter={filt}/>
+                {/* Glow base */}
+                <line x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke={col} strokeWidth={isSea?8:isAir?8:12} opacity=".08" filter={filt}/>
+                {/* Static route line */}
+                <line x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke={col} strokeWidth={isSea?1.5:isAir?1.5:2} strokeDasharray={isSea?'12,8':isAir?'7,6':undefined} opacity={isSea?.35:isAir?.45:.6} filter={filt}/>
+                {/* FLOWING supply animation */}
+                <line x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke={col} strokeWidth={isSea?2.5:isAir?2:3}
+                  strokeDasharray={flowLen} opacity={isSea?.7:isAir?.65:.85}
+                  style={{
+                    animation:`flow-supply ${flowDur} linear infinite`,
+                    filter:`drop-shadow(0 0 3px ${col})`,
+                  }}/>
               </g>
             )
           })}
