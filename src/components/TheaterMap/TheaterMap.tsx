@@ -538,40 +538,36 @@ export default function TheaterMap({ onBack }: Props) {
         <div style={{position:'absolute',inset:0,zIndex:20,pointerEvents:'none'}}>
           {GEO_NODES.map((node:TheaterNode)=>{
             const p=pos[node.id];if(!p) return null
-            const u=unitOf(node.unitId)
-            const status=u?u.status as string:'ACTIVE'
-            const col=statusColor(node)
-            const isSW=status==='STONEWALL',isAmb=status==='AMBER',isDark=status==='DARK'
-            const rdns=u?Math.round(u.readiness):null
             const isSel=selNode?.id===node.id
-            const nSize=zoom>=9?40:zoom>=7?33:zoom>=6?27:22
-            const fontSize=zoom>=9?14:zoom>=7?13:zoom>=6?12:11
+            const hitSize = zoom>=9?44:zoom>=7?34:zoom>=6?28:22
 
             return(
               <div key={node.id} onClick={()=>setSelNode(isSel?null:node)}
-                style={{position:'absolute',left:p.x,top:p.y,transform:'translate(-50%,-50%)',pointerEvents:'all',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center'}}>
-                {isDark && (
-                  <div style={{position:'absolute',width:nSize+20,height:nSize+20,borderRadius:node.type==='circle'?'50%':node.type==='square'?4:0,border:'1px solid #ff000030',boxShadow:'0 0 20px rgba(0,0,0,0.9)',background:'rgba(0,0,0,0.6)',zIndex:2}}/>
-                )}
-                <div style={{position:'absolute',width:nSize+16,height:nSize+16,borderRadius:node.type==='circle'?'50%':node.type==='square'?4:0,border:`1px solid ${col}22`,boxShadow:`0 0 ${isSW?22:12}px ${col}${isSW?'50':'18'}`,animation:isSW?'sw-pulse 0.9s ease-in-out infinite':undefined}}/>
-                <NATOSymbol
-                  nodeType={node.nodeType}
-                  unitId={node.unitId}
-                  col={col}
-                  size={nSize}
-                  isDark={isDark}
-                  isAmber={isAmb}
-                  isStonewall={isSW}
-                />
-                {zoom>=5&&<div style={{position:'absolute',bottom:`calc(100% + 5px)`,whiteSpace:'nowrap',fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize,letterSpacing:.5,color:isSel?'#ffffff':col,textShadow:`0 0 8px ${col}70,0 1px 4px rgba(0,0,0,.95)`}}>{node.name}{isDark&&<span style={{color:'#ff3333',marginLeft:5,fontSize:10,letterSpacing:2}}> ◼ DARK</span>}</div>}
-                {rdns!==null&&zoom>=6&&(
-                  <div style={{position:'absolute',top:`calc(100% + 4px)`,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-                    <div style={{width:nSize+4,height:4,background:'rgba(255,255,255,.08)',borderRadius:2,overflow:'hidden'}}>
-                      <div style={{width:`${rdns}%`,height:'100%',background:col,transition:'width 1s ease',boxShadow:`0 0 4px ${col}`}}/>
+                style={{position:'absolute',left:p.x,top:p.y,transform:'translate(-50%,-50%)',
+                  pointerEvents:'all',cursor:'pointer',
+                  width:hitSize,height:hitSize,
+                  // Invisible tap target — Deck.gl renders the actual sprite
+                  background:'transparent',
+                  // Show selection ring only
+                  borderRadius:4,
+                  border: isSel ? '2px solid rgba(0,255,136,0.8)' : 'none',
+                  boxShadow: isSel ? '0 0 12px rgba(0,255,136,0.5)' : 'none',
+                }}>
+                {/* Readiness bar — shown below tap target when selected or zoomed in */}
+                {isSel && (() => {
+                  const u = unitOf(node.unitId)
+                  const rdns = u ? Math.round(u.readiness) : null
+                  const col = statusColor(node)
+                  return rdns !== null ? (
+                    <div style={{position:'absolute',top:'calc(100% + 6px)',left:'50%',transform:'translateX(-50%)',display:'flex',flexDirection:'column',alignItems:'center',gap:2,minWidth:50}}>
+                      <div style={{width:50,height:4,background:'rgba(255,255,255,.1)',borderRadius:2,overflow:'hidden'}}>
+                        <div style={{width:`${rdns}%`,height:'100%',background:col,boxShadow:`0 0 4px ${col}`}}/>
+                      </div>
+                      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:col,whiteSpace:'nowrap'}}>{rdns}%</div>
+                      <div style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:11,color:col,whiteSpace:'nowrap',fontWeight:700}}>{node.name}</div>
                     </div>
-                    <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:col}}>{rdns}%</div>
-                  </div>
-                )}
+                  ) : null
+                })()}
               </div>
             )
           })}
@@ -611,7 +607,7 @@ export default function TheaterMap({ onBack }: Props) {
         {selNode&&<NodeDetailPanel node={{...selNode,wx:0,wy:0}} onClose={()=>setSelNode(null)}/>}
         <WeatherOverlay/>
         <AttackAnimations mapRef={mapRef}/>
-        {mapInst.current && <DeckGLOverlay mapInstance={mapInst.current} zoom={zoom} />}
+        {(mapInst as any).current && <DeckGLOverlay mapInstance={(mapInst as any).current} zoom={zoom} />}
       </div>
       {window.innerWidth >= 768 && <BattlefieldFeed/>}
       <NewsFeedSystem />

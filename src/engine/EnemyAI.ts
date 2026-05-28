@@ -358,7 +358,8 @@ export function resolveAttackEffects(attack: EnemyAttack): AttackEffect[] {
 
   switch (attack.type) {
     case 'IED':
-      // Delays convoy, elevates threat, small RCT hit
+      // IED closes the route pending EOD clearance — turns red for 1-2 days
+      effects.push({ locId:attack.targetLOC, type:'LOC_INTERDICT', magnitude:50, durationDays: attack.durationDays || 1 })
       effects.push({ locId:attack.targetLOC, type:'RCT_INCREASE', magnitude:10 })
       effects.push({ type:'SIGMA_HIT', magnitude:0.1 })
       break
