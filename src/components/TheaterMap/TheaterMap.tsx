@@ -543,69 +543,100 @@ export default function TheaterMap({ onBack }: Props) {
             const col=statusColor(node)
             const rdns=u?Math.round(u.readiness):null
             const hitSize=zoom>=9?52:zoom>=7?40:zoom>=6?32:26
-            const labelSize=zoom>=9?13:zoom>=7?12:11
+            const isDepot = ['DEPOT','ASP','SEAPORT','AERIAL_PORT'].includes(node.nodeType)
+
+            // Nameplate offset — appears above the sprite
+            const plateOffsetY = hitSize * 0.7 + 14
 
             return(
               <div key={node.id} onClick={()=>setSelNode(isSel?null:node)}
                 style={{position:'absolute',left:p.x,top:p.y,transform:'translate(-50%,-50%)',
-                  pointerEvents:'all',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',
+                  pointerEvents:'all',cursor:'pointer',
+                  display:'flex',flexDirection:'column',alignItems:'center',
                   userSelect:'none',WebkitUserSelect:'none',
                 }}>
 
-                {/* Selection highlight ring — pulsing glow behind sprite */}
+                {/* Selection pulse ring */}
                 {isSel && (
                   <div style={{
-                    position:'absolute',
-                    width:hitSize+16, height:hitSize+16,
+                    position:'absolute',zIndex:2,
+                    width:hitSize+20, height:hitSize+20,
                     borderRadius:6,
                     border:`2px solid ${col}`,
-                    boxShadow:`0 0 18px ${col}80, inset 0 0 8px ${col}30`,
+                    boxShadow:`0 0 24px ${col}90, inset 0 0 10px ${col}30`,
                     animation:'sw-pulse 1s ease-in-out infinite',
                     pointerEvents:'none',
-                    zIndex:2,
                   }}/>
                 )}
 
-                {/* Invisible hit area */}
+                {/* Invisible hit target */}
                 <div style={{width:hitSize,height:hitSize,position:'relative',zIndex:3}}/>
 
-                {/* Base name — always visible, brightness reflects status */}
+                {/* ── NAMEPLATE ── */}
                 <div style={{
                   position:'absolute',
-                  top:`calc(100% + ${hitSize/2 + 4}px)`,
+                  bottom:`calc(50% + ${plateOffsetY}px)`,
                   left:'50%',
                   transform:'translateX(-50%)',
-                  whiteSpace:'nowrap',
-                  fontFamily:'Barlow Condensed,sans-serif',
-                  fontWeight:700,
-                  fontSize:labelSize,
-                  letterSpacing:.8,
-                  color: isSel ? '#ffffff' : col,
-                  textShadow:`0 0 8px ${col}80, 0 1px 3px rgba(0,0,0,.95)`,
                   pointerEvents:'none',
-                  zIndex:4,
-                  padding:'1px 4px',
-                  background: isSel ? `${col}25` : 'rgba(0,0,0,0.5)',
-                  borderRadius:2,
-                  border: isSel ? `1px solid ${col}60` : 'none',
-                }}>{node.short || node.name}</div>
-
-                {/* Readiness bar — always shown when zoomed in, or when selected */}
-                {(isSel || zoom >= 7) && rdns !== null && (
+                  zIndex:10,
+                  display:'flex',flexDirection:'column',alignItems:'center',
+                  gap:0,
+                }}>
+                  {/* Main plate */}
                   <div style={{
-                    position:'absolute',
-                    top:`calc(100% + ${hitSize/2 + labelSize + 10}px)`,
-                    left:'50%',
-                    transform:'translateX(-50%)',
-                    display:'flex',flexDirection:'column',alignItems:'center',gap:2,
-                    pointerEvents:'none',zIndex:4,
+                    background: isSel
+                      ? `linear-gradient(135deg, ${col}28 0%, rgba(0,0,0,0.85) 100%)`
+                      : 'linear-gradient(135deg, rgba(0,12,6,0.88) 0%, rgba(0,6,3,0.82) 100%)',
+                    border:`1px solid ${isSel ? col : col+'55'}`,
+                    borderRadius:3,
+                    padding:'4px 9px 3px',
+                    backdropFilter:'blur(4px)',
+                    WebkitBackdropFilter:'blur(4px)',
+                    boxShadow: isSel
+                      ? `0 0 16px ${col}60, 0 2px 8px rgba(0,0,0,0.9)`
+                      : `0 2px 8px rgba(0,0,0,0.8)`,
+                    whiteSpace:'nowrap',
+                    display:'flex',flexDirection:'column',alignItems:'center',gap:1,
                   }}>
-                    <div style={{width:44,height:3,background:'rgba(255,255,255,.08)',borderRadius:2,overflow:'hidden'}}>
-                      <div style={{width:`${rdns}%`,height:'100%',background:col,boxShadow:`0 0 4px ${col}`,transition:'width 1s ease'}}/>
-                    </div>
-                    <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:col,whiteSpace:'nowrap'}}>{rdns}%</div>
+                    {/* Unit type tag */}
+                    <div style={{
+                      fontFamily:'Share Tech Mono,monospace',
+                      fontSize: zoom>=8?8:7,
+                      color:`${col}90`,
+                      letterSpacing:2,
+                      lineHeight:1,
+                    }}>{isDepot ? node.nodeType : (node.unitId ? 'FORWARD UNIT' : 'THEATER NODE')}</div>
+
+                    {/* Base name — large and prominent */}
+                    <div style={{
+                      fontFamily:'Barlow Condensed,sans-serif',
+                      fontWeight:700,
+                      fontSize: zoom>=9?16:zoom>=7?14:zoom>=6?13:12,
+                      color: isSel ? '#ffffff' : col,
+                      letterSpacing:.5,
+                      lineHeight:1.1,
+                      textShadow:`0 0 12px ${col}80`,
+                    }}>{node.name}</div>
+
+                    {/* Readiness strip */}
+                    {rdns !== null && (
+                      <div style={{display:'flex',alignItems:'center',gap:5,marginTop:2}}>
+                        <div style={{width:zoom>=8?52:40,height:3,background:'rgba(255,255,255,.08)',borderRadius:2,overflow:'hidden'}}>
+                          <div style={{width:`${rdns}%`,height:'100%',background:col,transition:'width 1s',boxShadow:`0 0 4px ${col}`}}/>
+                        </div>
+                        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:col,lineHeight:1}}>{rdns}%</div>
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  {/* Connector stem */}
+                  <div style={{
+                    width:1,
+                    height:8,
+                    background:`linear-gradient(to bottom, ${col}80, transparent)`,
+                  }}/>
+                </div>
               </div>
             )
           })}

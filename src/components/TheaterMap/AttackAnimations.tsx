@@ -192,8 +192,9 @@ export default function AttackAnimations({ mapRef }: Props) {
       setProjs(prev => {
         const updated = prev.map(p => {
           if (!p.active || p.hit) return p
-          const style = getProjectileStyle(p.type)
-          const newProgress = Math.min(1, p.progress + style.speed)
+          const speeds: Record<string,number> = { ROCKET:0.018, DRONE:0.006, CRUISE_MISSILE:0.012, ARTILLERY:0.025 }
+          const speed = speeds[p.type] || 0.015
+          const newProgress = Math.min(1, p.progress + speed)
           if (newProgress >= 1) {
             // Trigger hit effect
             setHits(h => [...h, { id:`hit_${p.id}_${Date.now()}`, x:p.toX, y:p.toY, type:p.type }])
