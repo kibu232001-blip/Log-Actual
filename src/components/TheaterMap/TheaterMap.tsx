@@ -460,7 +460,7 @@ export default function TheaterMap({ onBack }: Props) {
           )}
         </svg>
 
-        {/* Moving assets */}
+        {/* Moving assets — now rendered by DeckGLOverlay sprite layer */}
         {/* ── ROCKET IMPACT FLASHES ── */}
         {rocketStrikes.map(strike => {
           // Find the node position for this unit
@@ -479,21 +479,6 @@ export default function TheaterMap({ onBack }: Props) {
             </div>
           )
         })}
-        <div style={{position:'absolute',inset:0,zIndex:25,pointerEvents:'none'}}>
-          {movers.map(m=>{
-            const col=m.moveType==='SEA'?'#4488ff':m.moveType==='HELO'?'#88ddff':m.moveType==='AIR'?'#00aaff':'#00ff88'
-            return(
-              <div key={m.id} style={{position:'absolute',left:m.x,top:m.y,transform:`translate(-50%,-50%) rotate(${m.heading}deg)`,pointerEvents:'none'}}>
-                {m.moveType==='SEA'&&<div style={{animation:'ship-bob 2s ease-in-out infinite'}}><ShipSVG size={cs} col={col}/></div>}
-                {m.moveType==='HELO'&&<div style={{animation:'helo-bob 1.2s ease-in-out infinite'}}><HeloSVG size={cs} col={col}/></div>}
-                {m.moveType==='AIR'&&<div style={{animation:'plane-glide 1.8s ease-in-out infinite'}}><PlaneSVG size={cs} col={col}/></div>}
-                {m.moveType==='GROUND'&&<div style={{width:cs*1.8,height:cs,background:col,borderRadius:2,boxShadow:`0 0 ${cs}px ${col}60`,opacity:.9}}/>}
-                {zoom>=9&&m.moveType!=='SEA'&&<div style={{position:'absolute',top:-16,left:'50%',transform:`translateX(-50%) rotate(-${m.heading}deg)`,whiteSpace:'nowrap',fontFamily:'Share Tech Mono,monospace',fontSize:9,color:col,textShadow:`0 0 4px ${col}`,letterSpacing:.5}}>{m.cargo}</div>}
-              </div>
-            )
-          })}
-        </div>
-
         {/* Conflict effects */}
         <div style={{position:'absolute',inset:0,zIndex:30,pointerEvents:'none'}}>
           {conflicts.map(cf=>(

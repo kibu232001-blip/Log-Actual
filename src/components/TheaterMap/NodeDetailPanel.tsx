@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import AudioEngine from '../../engine/AudioEngine'
 import { useGameStore } from '../../store/gameStore'
 import { getTheaterNetwork } from '../../data/scenarioNodes'
+import { getScenarioMeta } from '../../data/scenarioRoutes'
 
 interface NodeData { id:string; name:string; type:string; unitId:string|null; wx:number; wy:number }
 interface Props { node:NodeData; onClose:()=>void }
@@ -113,12 +114,24 @@ function ConvoyDispatch({ node, unit, currentDay, onDispatch, onCancel }: Dispat
   const statusCol = (s:string) => s==='INTERDICTED'?'#ff2200':s==='CONTESTED'?'#ff8800':'#2d5a32'
   const statusLabel = (s:string) => s==='INTERDICTED'?'⛔ BLOCKED':s==='CONTESTED'?'⚠ CONTESTED':'✓ OPEN'
 
-  const assets = [
+  const scenarioMeta = getScenarioMeta(activeScenarioId)
+  const allAssets = [
     { id:'GROUND', label:'GROUND CONVOY', icon:'🚛', color:'#00ff88', max:60 },
     { id:'AIR',    label:'AIR SORTIE',    icon:'✈',  color:'#00aaff', max:30 },
     { id:'HELO',   label:'HELICOPTER',    icon:'🚁',  color:'#88ddff', max:20 },
     { id:'SEA',    label:'SEA LIFT',      icon:'⛴',  color:'#4488ff', max:80 },
   ]
+  // Island/Peninsula scenarios — no ground routes, sea and air only
+  const assets = (scenarioMeta as any).airOnlyLogistics
+    ? allAssets.filter(a => a.id === 'AIR' || a.id === 'SEA')
+    : allAssets
+
+  // Reset assetType if current selection is now unavailable
+  React.useEffect(() => {
+    if (!assets.find(a => a.id === assetType)) {
+      setAssetType(assets[0]?.id as any || 'AIR')
+    }
+  }, [activeScenarioId])
   const selectedAsset = assets.find(a=>a.id===assetType)!
 
   const handleDispatch = () => {

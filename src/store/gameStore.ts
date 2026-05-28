@@ -1007,7 +1007,17 @@ export const useGameStore = create<Store>((set,get)=>({
     const s=get() as any
     const isAir = assetType==='AIR'||assetType==='HELO'
 
-    // ── PERMANENT LOC INTERDICTION CHECK ──────────────────────────────────────
+    // C6 Island Hop — ground convoys not available
+    if (!isAir && assetType !== 'SEA' && meta.airOnlyLogistics) {
+      const blockEvent = {
+        id:`GROUND_BLOCKED_${Date.now()}`, type:'LOGREP', priority:'PRIORITY',
+        title:'GROUND CONVOY UNAVAILABLE — ISLAND THEATER',
+        report:'No ground LOCs exist in this theater. Use AIR SORTIE or SEA LIFT for all resupply operations.',
+        effects:[], affectedAssets:[], acknowledged:true, mitigated:true,
+      }
+      set(st=>({ appliedBattlefieldEvents:[blockEvent,...((st as any).appliedBattlefieldEvents||[])].slice(0,60) }))
+      return
+    }
     if (!isAir) {
       const locs = (s.locs || {}) as Record<string, any>
       const matchedLOC = Object.values(locs).find((loc:any) =>
