@@ -353,17 +353,58 @@ export default function TheaterMap({ onBack }: Props) {
   },[activeScenarioId])
 
   useEffect(()=>{
-    if(!mapRef.current||mapInst.current) return
-    const map=L.map(mapRef.current,{center:theater.mapCenter,zoom:theater.mapZoom,zoomControl:true})
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',className:'theater-tiles'}).addTo(map)
-    mapInst.current=map
-    aoLayerRef.current=L.layerGroup().addTo(map)
-    map.on('moveend zoomend move zoom resize',updatePositions)
-    setTimeout(updatePositions,400)
-    rafRef.current=requestAnimationFrame(animate)
-    return()=>{map.remove();mapInst.current=null;cancelAnimationFrame(rafRef.current)}
-  },[])
+    if(!mapRef.current||(mapInst as any).current) return
 
+    // ── MAPLIBRE GL — WebGL map, smooth fractional zoom, 3D pitch ─────────────
+    import('maplibre-gl').then(({ Map: MLMap }) => {
+      import('maplibre-gl/dist/maplibre-gl.css').catch(()=>{})
+
+      const mlMap = new MLMap({
+        container: mapRef.current!,
+        style: {
+          version: 8,
+          sources: { osm: { type:'raster', tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize:256, attribution:'© OpenStreetMap' } },
+          layers: [{ id:'osm', type:'raster', source:'osm', paint:{ 'raster-brightness-min':0, 'raster-brightness-max':0.15, 'raster-saturation':-0.8, 'raster-contrast':0.1 } }]
+        },
+        center: [theater.mapCenter[1], theater.mapCenter[0]],
+        zoom: theater.mapZoom,
+        minZoom: 2, maxZoom: 16,
+        dragRotate: false,
+        attributionControl: false,
+      })
+
+      // Compatibility shim — keeps existing code working
+      const compat = {
+        _ml: mlMap,
+        getZoom:   () => mlMap.getZoom(),
+        getCenter: () => { const cc = mlMap.getCenter(); return { lat: cc.lat, lng: cc.lng } },
+        getSize:   () => { const cv = mlMap.getCanvas(); return { x: cv.clientWidth, y: cv.clientHeight } },
+        flyTo: (latLng: [number,number], zoom: number, opts?: any) => {
+          mlMap.flyTo({ center:[latLng[1],latLng[0]], zoom, duration:(opts?.duration||1)*1000, essential:true })
+        },
+        latLngToContainerPoint: (latLng: [number,number]) => {
+          const pt = mlMap.project([latLng[1], latLng[0]])
+          return { x: pt.x, y: pt.y }
+        },
+        on:  (evt: string, fn: any) => evt.split(' ').forEach(e => mlMap.on(e as any, fn)),
+        off: (evt: string, fn: any) => evt.split(' ').forEach(e => mlMap.off(e as any, fn)),
+        remove: () => mlMap.remove(),
+      }
+      ;(mapInst as any).current = compat
+
+      mlMap.on('load', () => { updatePositions(); rafRef.current = requestAnimationFrame(animate) })
+      mlMap.on('move',   updatePositions)
+      mlMap.on('zoom',   () => { setZoom(mlMap.getZoom()); updatePositions() })
+      mlMap.on('resize', updatePositions)
+    })
+
+    return () => {
+      const inst = (mapInst as any).current
+      if (inst?.remove) inst.remove()
+      ;(mapInst as any).current = null
+      cancelAnimationFrame(rafRef.current)
+    }
+  },[])
   useEffect(()=>{updatePositions()},[units,currentDay])
 
   // Sync store convoys and node positions for animation loop
