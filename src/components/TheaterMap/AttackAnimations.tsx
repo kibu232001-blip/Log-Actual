@@ -61,14 +61,18 @@ function AttackSprite({ name, size, angle=0, style={} }: {
 }) {
   const sp = ATK_SPRITES[name]
   const scale = size / sp.w
+  // Full sheet is 4×4 cells = 2048×2048
+  const sheetW = 4 * sp.w
+  const sheetH = 4 * sp.h
   return (
     <div style={{
       width: size, height: size * (sp.h/sp.w),
       backgroundImage: `url(${ATK_SPRITE})`,
       backgroundPosition: `-${sp.x * scale}px -${sp.y * scale}px`,
-      backgroundSize: `${4 * sp.w * scale}px ${4 * sp.h * scale}px`,
+      backgroundSize: `${sheetW * scale}px ${sheetH * scale}px`,
+      backgroundRepeat: 'no-repeat',
       transform: `rotate(${angle}deg)`,
-      imageRendering: 'pixelated',
+      imageRendering: 'auto',
       ...style,
     }}/>
   )

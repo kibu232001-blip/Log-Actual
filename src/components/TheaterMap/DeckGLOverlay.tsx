@@ -128,10 +128,14 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
     return m
   },[theater])
 
-  function findDest(toUnitId:string) {
-    if (nodeMap[toUnitId]) return nodeMap[toUnitId]
-    const n = theater.nodes.find((n:any)=>n.unitId===toUnitId)
-    return n ? {lat:n.lat,lng:n.lng} : undefined
+  function findDest(id:string) {
+    if (!id) return undefined
+    if (nodeMap[id]) return nodeMap[id]
+    const n = theater.nodes.find((n:any)=>n.unitId===id||n.id===id)
+    if (n) return {lat:n.lat,lng:n.lng}
+    // Fallback to shared window positions set by TheaterMap
+    const gn = ((window as any).__geoNodes||[]).find((n:any)=>n.unitId===id||n.id===id)
+    return gn ? {lat:gn.lat,lng:gn.lng} : undefined
   }
 
   // Prefetch routes

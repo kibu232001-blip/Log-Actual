@@ -202,7 +202,7 @@ export default function TheaterMap({ onBack }: Props) {
   // Combat cam — auto-zoom to enemy attack location
   const lastEnemyAttacks = useGameStore(s => (s as any).lastEnemyAttacks || [])
   useEffect(() => {
-    if (!lastEnemyAttacks.length || !mapInst.current) return
+    if (!lastEnemyAttacks.length || !(mapInst as any).current) return
     const newAttacks = lastEnemyAttacks.filter((a:any) =>
       !lastAttacksRef.current.find((old:any) => old.id === a.id)
     )
@@ -211,9 +211,9 @@ export default function TheaterMap({ onBack }: Props) {
       const atk = newAttacks[0]
       if (atk.mapMarker) {
         // Brief zoom to attack site
-        mapInst.current.flyTo([atk.mapMarker.lat, atk.mapMarker.lng], 8, { duration:1.2 })
+        (mapInst as any).current.flyTo([atk.mapMarker.lat, atk.mapMarker.lng], 8, { duration:1.2 })
         setTimeout(() => {
-          mapInst.current?.flyTo([theater.mapCenter[0], theater.mapCenter[1]], theater.mapZoom, { duration:1.5 })
+          (mapInst as any).current?.flyTo([theater.mapCenter[0], theater.mapCenter[1]], theater.mapZoom, { duration:1.5 })
         }, 3500)
       }
       AudioEngine.playEnemyAttack()
@@ -262,24 +262,28 @@ export default function TheaterMap({ onBack }: Props) {
   GEO_NODES.forEach(n=>{nodeMap[n.id]=n})
 
   const updatePositions = useCallback(()=>{
-    if(!mapInst.current) return
+    const inst = (mapInst as any).current
+    if(!inst) return
     const newPos:NodePos={}
     GEO_NODES.forEach(node=>{
-      const pt=mapInst.current!.latLngToContainerPoint([node.lat,node.lng])
-      newPos[node.id]={x:pt.x,y:pt.y}
+      try {
+        const pt=inst.latLngToContainerPoint([node.lat,node.lng])
+        newPos[node.id]={x:pt.x,y:pt.y}
+      } catch(e) {}
     })
-    // Strategic origin (ships departing)
     if(theater.strategicOrigin){
-      const pt=mapInst.current!.latLngToContainerPoint([theater.strategicOrigin.lat,theater.strategicOrigin.lng])
-      newPos['STRATEGIC_ORIGIN']={x:pt.x,y:pt.y}
+      try {
+        const pt=inst.latLngToContainerPoint([theater.strategicOrigin.lat,theater.strategicOrigin.lng])
+        newPos['STRATEGIC_ORIGIN']={x:pt.x,y:pt.y}
+      } catch(e) {}
     }
     setPos(newPos)
-    setZoom(mapInst.current.getZoom())
+    setZoom(inst.getZoom())
   },[GEO_NODES, theater])
 
   const animate = useCallback(()=>{
-    if(!mapInst.current){rafRef.current=requestAnimationFrame(animate);return}
-    const cz=mapInst.current.getZoom()
+    if(!(mapInst as any).current){rafRef.current=requestAnimationFrame(animate);return}
+    const cz=(mapInst as any).current.getZoom()
     const groundSpeed=cz>=9?.00012:cz>=7?.0002:.00035
     const airSpeed=groundSpeed*1.8
     const seaSpeed=groundSpeed*0.5
@@ -298,7 +302,7 @@ export default function TheaterMap({ onBack }: Props) {
           conflictRef.current[ck]=(conflictRef.current[ck]+.003)%1
           const tt=conflictRef.current[ck]
           const lat=f.lat+(t.lat-f.lat)*tt,lng=f.lng+(t.lng-f.lng)*tt
-          const pt=mapInst.current!.latLngToContainerPoint([lat,lng])
+          const pt=(mapInst as any).current.latLngToContainerPoint([lat,lng])
           const phase=tt*Math.PI*2
           newConflicts.push({
             id:ck,
@@ -324,9 +328,9 @@ export default function TheaterMap({ onBack }: Props) {
         progRef.current[ck]=(progRef.current[ck]+speed)%1
         const tt=progRef.current[ck]
         const lat=f.lat+(t.lat-f.lat)*tt,lng=f.lng+(t.lng-f.lng)*tt
-        const pt=mapInst.current!.latLngToContainerPoint([lat,lng])
+        const pt=(mapInst as any).current.latLngToContainerPoint([lat,lng])
         const nt=Math.min(1,tt+.01)
-        const nPt=mapInst.current!.latLngToContainerPoint([f.lat+(t.lat-f.lat)*nt,f.lng+(t.lng-f.lng)*nt])
+        const nPt=(mapInst as any).current.latLngToContainerPoint([f.lat+(t.lat-f.lat)*nt,f.lng+(t.lng-f.lng)*nt])
         newMovers.push({
           id:ck,x:pt.x,y:pt.y,
           heading:Math.atan2(nPt.y-pt.y,nPt.x-pt.x)*180/Math.PI,
@@ -346,8 +350,8 @@ export default function TheaterMap({ onBack }: Props) {
 
   // Re-init map when scenario changes
   useEffect(()=>{
-    if(mapInst.current){
-      mapInst.current.flyTo(theater.mapCenter,theater.mapZoom,{duration:1.2})
+    if((mapInst as any).current){
+      (mapInst as any).current.flyTo(theater.mapCenter,theater.mapZoom,{duration:1.2})
       setTimeout(updatePositions,600)
     }
   },[activeScenarioId])
@@ -416,8 +420,8 @@ export default function TheaterMap({ onBack }: Props) {
 
   // Fly to location when battlefield feed event is clicked
   useEffect(()=>{
-    if (!mapFlyTarget || !mapInst.current) return
-    mapInst.current.flyTo([mapFlyTarget.lat, mapFlyTarget.lng], mapFlyTarget.zoom, { duration:1.0 })
+    if (!mapFlyTarget || !(mapInst as any).current) return
+    (mapInst as any).current.flyTo([mapFlyTarget.lat, mapFlyTarget.lng], mapFlyTarget.zoom, { duration:1.0 })
     if (clearFlyTarget) setTimeout(clearFlyTarget, 1500)
   },[mapFlyTarget])
 
