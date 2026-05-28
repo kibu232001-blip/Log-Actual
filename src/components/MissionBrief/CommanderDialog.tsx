@@ -38,6 +38,7 @@ async function speakLine(
     const audio = new Audio(url)
     audio.volume = 0.92
     activeAudio = audio
+    ;(window as any).__activeCommanderAudio = audio
 
     // Once metadata loaded, tell TypeWriter the real duration
     audio.onloadedmetadata = () => {
@@ -138,8 +139,12 @@ export default function CommanderDialog({ team, activeTab, selectedMemberId, onC
   const [done, setDone]       = useState(false)
   const [audioDurationMs, setAudioDurationMs] = useState<number|undefined>(undefined)
 
-  // Reset on section/tab change
-  useEffect(() => { setLineIdx(0); setDone(false); setAudioDurationMs(undefined) }, [activeTab, selectedMemberId])
+  // Reset on section/tab change — stop any playing audio
+  useEffect(() => {
+    if (activeAudio) { activeAudio.pause(); activeAudio = null }
+    if (window.speechSynthesis) window.speechSynthesis.cancel()
+    setLineIdx(0); setDone(false); setAudioDurationMs(undefined)
+  }, [activeTab, selectedMemberId])
 
   const advance = useCallback(() => {
     if (!section) return

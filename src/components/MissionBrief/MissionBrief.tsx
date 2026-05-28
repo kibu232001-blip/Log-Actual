@@ -45,8 +45,22 @@ export default function MissionBrief({ scenario, onProceed, onBack }: Props) {
   const setDifficulty = useGameStore(s => (s as any).setDifficulty)
   const { speak, stop, speaking } = useVoice()
 
-  useEffect(() => { stop() }, [activeTab])
-  useEffect(() => { return () => stop() }, [])
+  const stopAllAudio = () => {
+    stop()
+    // Stop ElevenLabs audio
+    const a = (window as any).__activeCommanderAudio
+    if (a) { a.pause(); a.currentTime = 0; (window as any).__activeCommanderAudio = null }
+    if (window.speechSynthesis) window.speechSynthesis.cancel()
+  }
+
+  // Close dialog + stop all audio when switching tabs
+  useEffect(() => {
+    setDialogOpen(false)
+    setSelectedMemberId(null)
+    stopAllAudio()
+  }, [activeTab])
+
+  useEffect(() => { return () => stopAllAudio() }, [])
 
   const diffColor = DIFF_COLORS[scenario.difficulty] || '#2ecc71'
   const team: BriefingTeam = getBriefingTeam(scenario.id)
