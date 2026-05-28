@@ -71,8 +71,10 @@ function getConvoySprite(c:any) {
   return 'ground_healthy'
 }
 
-function getNodeSprite(unit:any, nodeType:string) {
-  if (['DEPOT','ASP','SEAPORT','AERIAL_PORT'].includes(nodeType)) return 'depot_node'
+function getNodeSprite(unit:any, nodeType:string, portStock:number=0):string {
+  if (['SEAPORT'].includes(nodeType)) return portStock>0 ? 'theater_push' : 'cargo_vessel'
+  if (['AERIAL_PORT'].includes(nodeType)) return portStock>0 ? 'theater_push' : 'air_marker'
+  if (['DEPOT','ASP'].includes(nodeType)) return portStock>0 ? 'supply_full' : 'depot_node'
   if (!unit) return 'fob_healthy'
   if (unit.status==='STONEWALL'||unit.status==='DARK') return 'fob_stonewall'
   if (unit.status==='RED'||unit.readiness<40) return 'fob_critical'
@@ -120,6 +122,7 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
   const currentDay       = useGameStore(s => s.currentDay)
   const secondsToNextDay = useGameStore(s => (s as any).secondsToNextDay??120)
   const pendingAirdrops  = useGameStore(s => (s as any).__pendingAirdrops||[]) as any[]
+  const portStockpiles   = useGameStore(s => (s as any).portStockpiles||{}) as any
 
   const theater = useMemo(()=>getTheaterNetwork(activeScenarioId),[activeScenarioId])
   const nodeMap = useMemo(()=>{
@@ -215,7 +218,7 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
     staticNodeRef.current = theater.nodes.filter((n:any)=>nodeMap[n.id]).map((n:any)=>({
       id:n.id,
       position:[n.lng,n.lat] as [number,number],
-      icon:getNodeSprite(units[n.unitId], n.nodeType),
+      icon:getNodeSprite(units[n.unitId], n.nodeType, portStockpiles[n.id]||0),
       size:['DEPOT','ASP'].includes(n.nodeType)?1200:1500,
     }))
 

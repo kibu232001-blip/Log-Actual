@@ -461,26 +461,72 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
           const isPortOrAirbase = ['SEAPORT','AERIAL_PORT','DEPOT','ASP'].includes(nodeType)
           if (!isPortOrAirbase) return null
 
+          const portStockpiles = useGameStore.getState().portStockpiles as any || {}
+          const staged = portStockpiles[node.id] || portStockpiles[theaterNode?.id] || 0
+          const pushFromPort = (useGameStore.getState() as any).pushFromPort
+          const allUnitsList = Object.values(units) as any[]
+          const [pushTarget, setPushTarget] = React.useState('')
+          const [pushAmt, setPushAmt] = React.useState(20)
+
           // Find convoys passing through or arriving at this node
           const inbound = realConvoys.filter((c:any) =>
-            c.status === 'EN_ROUTE' && (c.toUnitId === node.id || c.toUnitId === node.unitId)
+            c.status === 'EN_ROUTE' && (c.toUnitId === node.id || c.toUnitId === theaterNode?.id)
           )
           const outbound = realConvoys.filter((c:any) =>
-            c.status === 'EN_ROUTE' && (c.fromNodeId === node.id || c.fromNodeId === node.unitId)
-          )
-          const delivered = realConvoys.filter((c:any) =>
-            c.status === 'DELIVERED' && (c.toUnitId === node.id || c.toUnitId === node.unitId) &&
-            currentDay - (c.arrivedDay || 0) <= 3
+            c.status === 'EN_ROUTE' && (c.fromNodeId === node.id || c.fromNodeId === theaterNode?.id)
           )
 
           const typeIcon: Record<string,string> = { AIR:'✈', HELO:'🚁', SEA:'⛴', GROUND:'🚛' }
-          const clLabel = (cargo: any[]) => cargo?.map((c:any) => `CL ${['I','II','III','IV','V','VIII','IX'][c.supplyClass-1]||c.supplyClass} ×${c.amount}`).join(', ') || '—'
+          const clLabel = (cargo: any[]) => cargo?.map((c:any) => `CL ${['I','II','III','IV','V','VIII','IX'][(c.supplyClass||1)-1]||c.supplyClass} ×${c.amount}`).join(', ') || '—'
 
           return (
             <div style={{padding:'10px 14px',borderBottom:'1px solid #0d2010'}}>
               <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#1a5a3a',letterSpacing:3,marginBottom:8}}>
                 ▸ {nodeType} MANIFEST — D+{currentDay}
               </div>
+
+              {/* Staged stockpile */}
+              {staged > 0 && (
+                <div style={{marginBottom:10,padding:'8px 10px',background:'rgba(0,255,136,0.08)',border:'1px solid #1a5a2a',borderRadius:4}}>
+                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#00ff88',letterSpacing:2,marginBottom:6}}>
+                    ⬇ STAGED SUPPLY AVAILABLE
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
+                    <div style={{flex:1,height:6,background:'rgba(255,255,255,.08)',borderRadius:3,overflow:'hidden'}}>
+                      <div style={{width:`${Math.min(100,staged/2)}%`,height:'100%',background:'#00ff88'}}/>
+                    </div>
+                    <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:12,color:'#00ff88',fontWeight:700}}>{staged}%</span>
+                  </div>
+                  <div style={{display:'flex',gap:4,marginBottom:4}}>
+                    <select value={pushTarget} onChange={e=>setPushTarget(e.target.value)} style={{
+                      flex:1,background:'#050e06',border:'1px solid #1a4a20',color:'#4a8a54',
+                      fontFamily:'Share Tech Mono,monospace',fontSize:10,padding:'3px 5px',borderRadius:2
+                    }}>
+                      <option value=''>— SELECT UNIT —</option>
+                      {allUnitsList.map((u:any)=>(
+                        <option key={u.id} value={u.id}>{u.shortName||u.name}</option>
+                      ))}
+                    </select>
+                    <input type="number" min={5} max={Math.min(staged,50)} value={pushAmt}
+                      onChange={e=>setPushAmt(Number(e.target.value))}
+                      style={{width:40,background:'#050e06',border:'1px solid #1a4a20',color:'#00ff88',
+                        fontFamily:'Share Tech Mono,monospace',fontSize:11,padding:'3px 5px',borderRadius:2,textAlign:'center'}}/>
+                    <button
+                      disabled={!pushTarget || staged<=0}
+                      onClick={()=>{ if(pushFromPort&&pushTarget){ pushFromPort(theaterNode?.id||node.id, pushTarget, pushAmt); setPushTarget('') }}}
+                      style={{
+                        background:pushTarget?'rgba(0,255,136,0.15)':'rgba(0,50,20,0.3)',
+                        border:`1px solid ${pushTarget?'#00ff88':'#1a4a20'}`,
+                        color:pushTarget?'#00ff88':'#1a5a2a',
+                        fontFamily:'Share Tech Mono,monospace',fontSize:10,padding:'3px 8px',
+                        borderRadius:2,cursor:pushTarget?'pointer':'default',letterSpacing:1,
+                      }}>PUSH</button>
+                  </div>
+                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#1a5a2a'}}>
+                    PUSH SUPPLY DIRECTLY FROM STAGED STOCK → UNIT
+                  </div>
+                </div>
+              )}
 
               {/* Inbound */}
               {inbound.length > 0 && (
@@ -489,8 +535,8 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
                     INBOUND ({inbound.length})
                   </div>
                   {inbound.map((c:any) => {
-                    const eta = Math.max(0, (c.departedDay||0) + (c.travelDays||1) - currentDay)
-                    const progress = Math.min(100, Math.round(((currentDay-(c.departedDay||0))/(c.travelDays||1))*100))
+                    const eta = Math.max(0, (c.departedDay||0)+(c.travelDays||1)-currentDay)
+                    const progress = Math.min(100,Math.round(((currentDay-(c.departedDay||0))/(c.travelDays||1))*100))
                     return (
                       <div key={c.id} style={{marginBottom:5,padding:'5px 8px',background:'rgba(0,255,136,0.05)',border:'1px solid #0d3020',borderRadius:3}}>
                         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -498,14 +544,12 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
                             {typeIcon[c.assetType||'GROUND']} {c.assetType||'GROUND'} CONVOY
                           </span>
                           <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:'#2a8a5a'}}>
-                            ETA D+{eta} {eta===0?'TODAY':eta===1?'TOMORROW':''}
+                            ETA D+{eta}{eta===0?' TODAY':eta===1?' TOMORROW':''}
                           </span>
                         </div>
-                        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#2d5a32',marginTop:2}}>
-                          {clLabel(c.cargo)}
-                        </div>
+                        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#2d5a32',marginTop:2}}>{clLabel(c.cargo)}</div>
                         <div style={{width:'100%',height:3,background:'rgba(255,255,255,.08)',borderRadius:2,marginTop:4,overflow:'hidden'}}>
-                          <div style={{width:`${progress}%`,height:'100%',background:'#00ff88',transition:'width 1s'}}/>
+                          <div style={{width:`${progress}%`,height:'100%',background:'#00ff88'}}/>
                         </div>
                       </div>
                     )
@@ -529,32 +573,14 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
                           </span>
                           <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#2a4a6a'}}>{c.assetType}</span>
                         </div>
-                        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#2a4a6a',marginTop:2}}>
-                          {clLabel(c.cargo)}
-                        </div>
+                        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#2a4a6a',marginTop:2}}>{clLabel(c.cargo)}</div>
                       </div>
                     )
                   })}
                 </div>
               )}
 
-              {/* Recently delivered */}
-              {delivered.length > 0 && (
-                <div style={{marginBottom:4}}>
-                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#887744',letterSpacing:2,marginBottom:4}}>
-                    RECENTLY DELIVERED
-                  </div>
-                  {delivered.map((c:any) => (
-                    <div key={c.id} style={{marginBottom:3,padding:'4px 8px',background:'rgba(136,119,68,0.05)',border:'1px solid #2a2010',borderRadius:3,opacity:0.7}}>
-                      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#887744'}}>
-                        ✓ {typeIcon[c.assetType||'GROUND']} {c.assetType} — {clLabel(c.cargo)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {inbound.length === 0 && outbound.length === 0 && (
+              {staged === 0 && inbound.length === 0 && outbound.length === 0 && (
                 <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:'#1a3a20',textAlign:'center',padding:'8px 0'}}>
                   NO ACTIVE SHIPMENTS
                 </div>

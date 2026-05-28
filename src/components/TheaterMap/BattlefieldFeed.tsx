@@ -16,21 +16,27 @@ function useEventCoordLookup() {
   const theater    = getTheaterNetwork(scenarioId)
   const roster     = getUnitRoster(scenarioId)
 
+  // Theater bounding box — don't fly outside it
+  const lats = theater.nodes.map(n=>n.lat)
+  const lngs = theater.nodes.map(n=>n.lng)
+  const minLat = Math.min(...lats)-2, maxLat = Math.max(...lats)+2
+  const minLng = Math.min(...lngs)-2, maxLng = Math.max(...lngs)+2
+
+  const inBounds = (lat:number, lng:number) =>
+    lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng
+
   return (ev: any): {lat:number;lng:number;zoom:number}|null => {
     const assets: string[] = ev.affectedAssets || []
     for (const asset of assets) {
-      // Step 1: unit ID → nodeId via roster (e.g. FOB1 → FOB_RTB for desert)
       const rosterEntry = roster[asset]
       if (rosterEntry?.nodeId) {
         const node = theater.nodes.find(n => n.id === rosterEntry.nodeId)
-        if (node) return { lat: node.lat, lng: node.lng, zoom: 9 }
+        if (node && inBounds(node.lat, node.lng)) return { lat: node.lat, lng: node.lng, zoom: 9 }
       }
-      // Step 2: direct node ID match (e.g. DEP_KTN, ASP_MIE)
       const byId = theater.nodes.find(n => n.id === asset)
-      if (byId) return { lat: byId.lat, lng: byId.lng, zoom: 9 }
-      // Step 3: node whose unitId matches (e.g. node with unitId:'FOB1')
+      if (byId && inBounds(byId.lat, byId.lng)) return { lat: byId.lat, lng: byId.lng, zoom: 9 }
       const byUnit = theater.nodes.find(n => n.unitId === asset)
-      if (byUnit) return { lat: byUnit.lat, lng: byUnit.lng, zoom: 9 }
+      if (byUnit && inBounds(byUnit.lat, byUnit.lng)) return { lat: byUnit.lat, lng: byUnit.lng, zoom: 9 }
     }
     return null
   }

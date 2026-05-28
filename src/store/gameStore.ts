@@ -605,34 +605,48 @@ export const useGameStore = create<Store>((set,get)=>({
       const sigma2b     = calcSigma(sw2b, calcRCT(updatedUnits))
 
       // ── THEATER RESUPPLY PUSH ──────────────────────────────────────────────────
-      // Out-of-theater supplies arrive on the scheduled interval
+      // Supply arrives at SPOD/APOD first — staged, then pushed forward by player
       const nextResupplyDay = (s as any).nextTheaterResupplyDay || 5
       const resupplyVolume = meta.theaterResupplyVolume || 20
+      const portStockpiles = { ...((s as any).portStockpiles || {}) } as Record<string,number>
 
       if (nextDay >= nextResupplyDay) {
-        // Push arrives — add to ALL units proportionally
+        // Find nearest SPOD/APOD for this scenario
+        const theater2 = getTheaterNetwork(s.activeScenarioId||'CAMPAIGN_1')
+        const ports = theater2.nodes.filter((n:any)=>
+          n.nodeType==='SEAPORT'||n.nodeType==='AERIAL_PORT'||n.nodeType==='DEPOT'
+        )
+
+        // Distribute supply volume across ports as staged stock
+        const volPerPort = Math.round(resupplyVolume * 1.5) // ports get MORE than direct push
+        ports.forEach((p:any) => {
+          portStockpiles[p.id] = Math.min(200, (portStockpiles[p.id]||0) + volPerPort)
+        })
+
+        // Also give a smaller direct push to units (partial — rest requires player to push from ports)
+        const directVol = Math.round(resupplyVolume * 0.4)
         const classKeys = ['CL_I','CL_III','CL_V','CL_IX'] as const
         Object.entries(updatedUnits).forEach(([id, u]: any) => {
           const newLvls = { ...u.supplyLevels }
           classKeys.forEach(k => {
-            newLvls[k] = Math.min(100, (newLvls[k] || 0) + resupplyVolume)
+            newLvls[k] = Math.min(100, (newLvls[k] || 0) + directVol)
           })
-          const newR = Math.min(100, Math.round((newLvls.CL_I + newLvls.CL_III + newLvls.CL_V) / 3))
-          updatedUnits[id] = { ...u, supplyLevels: newLvls, readiness: Math.max(u.readiness, newR - 10) }
+          updatedUnits[id] = { ...u, supplyLevels: newLvls }
         })
 
         const nextPush = nextResupplyDay + (meta.theaterResupplyInterval || 5)
         ;(updatedUnits as any).__nextResupplyDay = nextPush
 
+        const portNames = ports.slice(0,2).map((p:any)=>p.short||p.name).join(', ')
         newFeedEvents.push({
           id: `THEATER_RESUPPLY_D${nextDay}`, type:'LOGREP', priority:'PRIORITY',
-          title: `THEATER RESUPPLY PUSH ARRIVED — D${nextDay}`,
-          report: `Out-of-theater logistics package delivered. CL I/III/V/IX +${resupplyVolume}% all units. Next push: D+${nextPush}.`,
-          effects: [], affectedAssets: Object.keys(updatedUnits),
+          title: `THEATER PUSH ARRIVED — D${nextDay}`,
+          report: `Strategic logistics package delivered to ${portNames||'theater ports'}. ${volPerPort}% staged at each port node. Direct distribution +${directVol}% all units. Dispatch from ports to maximize forward supply. Next push: D+${nextPush}.`,
+          effects: [], affectedAssets: [],  // empty — don't fly to a unit
           acknowledged: false, mitigated: true,
         })
 
-        // Sortie rearm also arrives with theater push
+        // Sortie rearm
         ;(s as any).__resupplyDay = nextPush
       }
       // Auto-dispatch standing orders each day — no commander input needed
@@ -767,7 +781,7 @@ export const useGameStore = create<Store>((set,get)=>({
         report: wx.report,
         priority: wx.priority,
         severity: ['TYPHOON','STORM','SNOW','SANDSTORM'].includes(currentWeather) ? 'MAJOR' : 'MINOR',
-        effects:[], affectedAssets:[], acknowledged:false, mitigated:false,
+        effects:[], affectedAssets:[],  // no fly-to for weather — it's theater-wide
         location:'THEATER', mitigationWindow:60,
       })
     }
@@ -926,6 +940,7 @@ export const useGameStore = create<Store>((set,get)=>({
       locInterdictions,
       enemyIntel:intel,
       lastEnemyAttacks:enemyAttacks,
+      portStockpiles,
 
       // ── EARLY WARNING SYSTEM — FLASH alerts for incoming attacks ──────────
       // Inject warning events into the feed so player sees "INCOMING" before impact
@@ -1262,6 +1277,27 @@ export const useGameStore = create<Store>((set,get)=>({
   clearDecisionEvent:()=>set({pendingDecisionEvent:null}),
   setDifficulty:(d:'EASY'|'STANDARD'|'HARD'|'SFC_CHALLENGE')=>set({difficulty:d} as any),
   setWeather:(w:string)=>set({weather:w as any}),
+
+  // Push staged supply from port/depot stockpile to a unit
+  pushFromPort:(portId:string, toUnitId:string, amount:number)=>{
+    const s = get() as any
+    const stockpiles = { ...(s.portStockpiles||{}) }
+    const available = stockpiles[portId] || 0
+    if (available <= 0) return
+    const push = Math.min(amount, available)
+    stockpiles[portId] = Math.max(0, available - push)
+
+    // Distribute to target unit
+    const units = { ...s.units }
+    const unit = units[toUnitId]
+    if (unit) {
+      const classKeys = ['CL_I','CL_III','CL_V','CL_IX']
+      const newLvls = { ...unit.supplyLevels }
+      classKeys.forEach(k => { newLvls[k] = Math.min(100, (newLvls[k]||0) + push) })
+      units[toUnitId] = { ...unit, supplyLevels: newLvls }
+    }
+    set({ portStockpiles: stockpiles, units } as any)
+  },
 
   // ── STANDING FRAGO ORDERS ──────────────────────────────────────────────────
   setStandingOrder:(destUnitId:string, order:{
