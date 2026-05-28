@@ -271,182 +271,207 @@ export default function MobileHUD() {
 
       {/* ── CONTENT ── */}
       <div style={{ flex:1, overflowY:'auto', padding:'10px 12px' }}>
-
-        {tab === 'UNITS' && (() => {
-          const executeAction = (useGameStore.getState() as any).executeCommanderAction
-          const [selId, setSelId] = React.useState<string|null>(urgentUnits[0]?.id || null)
-          const [fragoOpen, setFragoOpen] = React.useState(false)
-          const selUnit = selId ? unitList.find((u:any)=>u.id===selId) : null
-          const okUnits = unitList.filter((u:any)=>!urgentUnits.find((x:any)=>x.id===u.id))
-
-          return (
-            <div>
-              {urgentUnits.length > 0 ? (<>
-                {/* Crisis selector */}
-                <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#ff4400',letterSpacing:3,marginBottom:8}}>SELECT UNIT TO RESPOND</div>
-                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
-                  {urgentUnits.map((u:any)=>{
-                    const minC=Math.min(u.supplyLevels?.CL_I||100,u.supplyLevels?.CL_III||100,u.supplyLevels?.CL_V||100)
-                    const col=u.status==='STONEWALL'?'#ff2200':'#ff8800'
-                    const isSel=selId===u.id
-                    return(<button key={u.id} onClick={()=>{AudioEngine.resume();AudioEngine.playTick(true);setSelId(u.id);setFragoOpen(false)}} style={{padding:'6px 12px',borderRadius:4,cursor:'pointer',background:isSel?`${col}30`:'rgba(0,0,0,0.4)',border:`2px solid ${isSel?col:col+'50'}`,fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:13,color:isSel?col:`${col}90`,WebkitTapHighlightColor:'transparent'}}>
-                      {u.shortName}<span style={{marginLeft:6,fontSize:11}}>{Math.round(minC)}%</span>
-                    </button>)
-                  })}
-                </div>
-
-                {/* Action deck */}
-                {selUnit && (<div style={{borderRadius:4,border:'1px solid rgba(255,100,0,0.3)',overflow:'hidden',marginBottom:8}}>
-                  <div style={{padding:'6px 10px',background:'rgba(255,50,0,0.08)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                    <span style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:14,color:'#ff8800'}}>{selUnit.name}</span>
-                    <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:getColor(selUnit.readiness)}}>RDNS {Math.round(selUnit.readiness)}%</span>
-                  </div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:8,background:'rgba(0,0,0,0.3)'}}>
-                    {[
-                      {type:'AIR_EMERGENCY',icon:'⚡',label:'AIR SORTIE',sub:'+40% CL III',col:'#00aaff'},
-                      {type:'FRAGO',        icon:'📋',label:'ISSUE FRAGO',sub:'Doctrinal order',col:'#cc88ff'},
-                      {type:'PRIORITY_PUSH',icon:'★', label:'SET PRIORITY',sub:'+8% RDNS',col:'#ff8800'},
-                    ].map((a:any)=>(
-                      <button key={a.type} onClick={()=>{
-                        AudioEngine.resume()
-                        if(a.type==='FRAGO'){
-                          AudioEngine.playTick(true)
-                          setFragoOpen(fo=>!fo)
-                        } else {
-                          AudioEngine.playAlert('PRIORITY')
-                          if(executeAction) executeAction({unitId:selUnit.id,actionType:a.type})
-                        }
-                      }} style={{padding:'8px 4px',borderRadius:3,cursor:'pointer',
-                        background: a.type==='FRAGO'&&fragoOpen ? `${a.col}25` : `${a.col}12`,
-                        border:`1px solid ${a.type==='FRAGO'&&fragoOpen ? a.col : a.col+'50'}`,
-                        color:a.col,fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:12,
-                        lineHeight:1.3,textAlign:'center',WebkitTapHighlightColor:'transparent'}}>
-                        <div style={{fontSize:16,marginBottom:2}}>{a.icon}</div>{a.label}
-                        <div style={{fontSize:8,fontFamily:'Share Tech Mono,monospace',marginTop:3,opacity:0.7}}>{a.sub}</div>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* FRAGO PANEL — standing LOGPAC order configurator */}
-                  {fragoOpen && selUnit && (<FragoPanel selUnit={selUnit} onClose={()=>setFragoOpen(false)} />)}
-                </div>)}
-
-                {/* Non-critical compact list */}
-                {okUnits.length>0&&(<div style={{borderTop:'1px solid #1a3a20',paddingTop:6}}>
-                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:2,marginBottom:5}}>OTHER UNITS</div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:3}}>
-                    {okUnits.map((u:any)=>(<div key={u.id} style={{display:'flex',alignItems:'center',gap:5,padding:'3px 6px',background:'rgba(0,0,0,0.2)',borderRadius:3}}>
-                      <span style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:11,color:'#4a7a54',flex:1}}>{u.shortName}</span>
-                      <div style={{width:28,height:3,background:'#0d1f10',borderRadius:2,overflow:'hidden'}}><div style={{height:'100%',width:`${u.readiness}%`,background:getColor(u.readiness)}}/></div>
-                      <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:getColor(u.readiness),width:28,textAlign:'right'}}>{Math.round(u.readiness)}%</span>
-                    </div>))}
-                  </div>
-                </div>)}
-              </>) : (<>
-                {/* Theater nominal — compact 2-col grid */}
-                <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#00ff88',letterSpacing:2,marginBottom:8,textAlign:'center'}}>✓ THEATER NOMINAL</div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4}}>
-                  {unitList.map((u:any)=>(<div key={u.id} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 8px',background:'rgba(0,0,0,0.2)',borderRadius:3,border:`1px solid ${getColor(u.readiness)}15`}}>
-                    <span style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:12,fontWeight:700,color:'#4a8a5a',flex:1}}>{u.shortName}</span>
-                    <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:getColor(u.readiness)}}>{Math.round(u.readiness)}%</span>
-                    <div style={{width:6,height:6,borderRadius:'50%',background:getColor(u.readiness)}}/>
-                  </div>))}
-                </div>
-              </>)}
-            </div>
-          )
-        })()}
-
-        {tab === 'SUPPLY' && (
-          <div>
-            <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,letterSpacing:3,color:'#2d5a32',marginBottom:10}}>
-              LIVE CONVOY MISSIONS — {inTransit.length} IN TRANSIT
-            </div>
-            {inTransit.length === 0 && (
-              <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:'#1a3a20',textAlign:'center',padding:'20px 0'}}>
-                NO CONVOYS IN TRANSIT — DISPATCH FROM MAP
-              </div>
-            )}
-            {inTransit.map((c:any, idx:number) => {
-              if (!c) return null
-              const daysLeft = Math.max(0, c.travelDays - (currentDay - c.departedDay))
-              const pct = Math.min(100, Math.round(c.departedDay ? (currentDay - c.departedDay) / c.travelDays * 100 : 0))
-              const col = c.assetType==='AIR'||c.assetType==='HELO' ? '#00aaff' : c.assetType==='SEA' ? '#4488ff' : '#00ff88'
-              const icon = c.assetType==='AIR'?'✈':c.assetType==='HELO'?'🚁':c.assetType==='SEA'?'⛴':'🚚'
-              const CLS = ['','CL I','CL II','CL III','CL IV','CL V','CL VIII','CL IX']
-              const cargoStr = (c.cargo||[]).filter((x:any)=>x.amount>0).map((x:any)=>`${CLS[x.supplyClass]||'CL?'}:${x.amount}%`).join(' ')
-              return (
-                <div key={c.id} style={{marginBottom:8,padding:'8px 10px',borderRadius:4,background:`${col}08`,border:`1px solid ${col}30`}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}>
-                    <span style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:14,color:col}}>{icon} {c.assetType} → {(c.toUnitId||'').replace(/_/g,' ')}</span>
-                    <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:daysLeft<=1?'#ff8800':col}}>ETA D+{daysLeft}</span>
-                  </div>
-                  <div style={{height:4,background:'#0d1f10',borderRadius:2,marginBottom:4}}>
-                    <div style={{height:'100%',width:`${pct}%`,background:col,borderRadius:2,transition:'width .5s'}}/>
-                  </div>
-                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:`${col}80`}}>{cargoStr || 'CARGO EN ROUTE'}</div>
-                </div>
-              )
-            })}
-            {delivered.length > 0 && (
-              <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #1a3a20'}}>
-                <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:2,marginBottom:5}}>DELIVERED: {delivered.length}</div>
-                {delivered.slice(-3).map((c:any) => (
-                  <div key={c.id} style={{display:'flex',justifyContent:'space-between',padding:'3px 6px',fontSize:10,fontFamily:'Share Tech Mono,monospace',color:'#2d5a32'}}>
-                    <span>✓ {c.assetType} → {(c.toUnitId||'').replace(/_/g,' ')}</span>
-                    <span>D{c.departedDay}+{c.travelDays}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === 'FEED' && (
-          <div>
-            <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9,
-              letterSpacing:3, color:'#2d5a32', marginBottom:10 }}>BATTLEFIELD INTEL FEED</div>
-            {feedEvents.length === 0 && (
-              <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:11,
-                color:'#1a3a20', textAlign:'center', padding:'24px 0' }}>
-                NO ACTIVE EVENTS
-              </div>
-            )}
-            {feedEvents.slice(0,12).map((ev:any, idx:number) => {
-              if (!ev) return null
-              const isFlash    = ev.priority === 'FLASH'
-              const isPriority = ev.priority === 'PRIORITY'
-              const accent = isFlash ? '#ff4444' : isPriority ? '#ff8800' : '#2ecc71'
-              const title = ev.title || ev.report?.slice(0,40) || 'INTEL'
-              const body  = (ev.report || ev.text || '').slice(0,120)
-              return (
-                <div key={ev.id || idx} style={{
-                  marginBottom:8, padding:'8px 10px', borderRadius:4,
-                  background: isFlash ? 'rgba(255,50,50,.08)' : 'rgba(0,20,8,.5)',
-                  border:`1px solid ${accent}30`,
-                }}>
-                  <div style={{ display:'flex', justifyContent:'space-between',
-                    alignItems:'center', marginBottom:4 }}>
-                    <span style={{ fontFamily:'Barlow Condensed,sans-serif', fontWeight:700,
-                      fontSize:13, color:accent, flex:1, marginRight:6 }}>{title}</span>
-                    <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:8,
-                      color:accent, border:`1px solid ${accent}60`, padding:'1px 5px',
-                      borderRadius:2, flexShrink:0 }}>
-                      {ev.priority || 'ROUTINE'}
-                    </span>
-                  </div>
-                  {body.length > 0 && (
-                    <div style={{ fontFamily:'Barlow,sans-serif', fontSize:11,
-                      color:'#4a7a54', lineHeight:1.4 }}>
-                      {body}{(ev.report?.length??0)>120?'…':''}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
+        {tab === 'UNITS'  && <UnitsTab urgentUnits={urgentUnits} unitList={unitList} />}
+        {tab === 'SUPPLY' && <SupplyTab allConvoys={allConvoys} currentDay={currentDay} />}
+        {tab === 'FEED'   && <FeedTab  feedEvents={feedEvents} />}
       </div>
+
+    </div>
+  )
+}
+
+// ── UNITS TAB ─────────────────────────────────────────────────────────────────
+function UnitsTab({ urgentUnits, unitList }: { urgentUnits:any[]; unitList:any[] }) {
+  const executeAction = useGameStore(s => (s as any).executeCommanderAction)
+  const [selId, setSelId] = useState<string|null>(urgentUnits[0]?.id || null)
+  const [fragoOpen, setFragoOpen] = useState(false)
+  const selUnit = selId ? unitList.find((u:any) => u.id === selId) : null
+  const okUnits = unitList.filter((u:any) => !urgentUnits.find((x:any) => x.id === u.id))
+
+  if (urgentUnits.length === 0) return (
+    <div>
+      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#00ff88',letterSpacing:2,marginBottom:8,textAlign:'center'}}>✓ THEATER NOMINAL</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4}}>
+        {unitList.map((u:any) => (
+          <div key={u.id} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 8px',background:'rgba(0,0,0,0.2)',borderRadius:3,border:`1px solid ${getColor(u.readiness)}15`}}>
+            <span style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:12,fontWeight:700,color:'#4a8a5a',flex:1}}>{u.shortName}</span>
+            <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:getColor(u.readiness)}}>{Math.round(u.readiness)}%</span>
+            <div style={{width:6,height:6,borderRadius:'50%',background:getColor(u.readiness)}}/>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
+  return (
+    <div>
+      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#ff4400',letterSpacing:3,marginBottom:8}}>SELECT UNIT TO RESPOND</div>
+      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+        {urgentUnits.map((u:any) => {
+          const minC = Math.min(u.supplyLevels?.CL_I||100, u.supplyLevels?.CL_III||100, u.supplyLevels?.CL_V||100)
+          const col = u.status==='STONEWALL' ? '#ff2200' : '#ff8800'
+          const isSel = selId === u.id
+          return (
+            <button key={u.id} onClick={() => { AudioEngine.resume(); AudioEngine.playTick(true); setSelId(u.id); setFragoOpen(false) }}
+              style={{padding:'6px 12px',borderRadius:4,cursor:'pointer',background:isSel?`${col}30`:'rgba(0,0,0,0.4)',border:`2px solid ${isSel?col:col+'50'}`,fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:13,color:isSel?col:`${col}90`,WebkitTapHighlightColor:'transparent'}}>
+              {u.shortName}<span style={{marginLeft:6,fontSize:11}}>{Math.round(minC)}%</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {selUnit && (
+        <div style={{borderRadius:4,border:'1px solid rgba(255,100,0,0.3)',overflow:'hidden',marginBottom:8}}>
+          <div style={{padding:'6px 10px',background:'rgba(255,50,0,0.08)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <span style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:14,color:'#ff8800'}}>{selUnit.name}</span>
+            <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:getColor(selUnit.readiness)}}>RDNS {Math.round(selUnit.readiness)}%</span>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:8,background:'rgba(0,0,0,0.3)'}}>
+            {[
+              {type:'AIR_EMERGENCY', icon:'⚡', label:'AIR SORTIE',   sub:'+40% CL III',    col:'#00aaff'},
+              {type:'FRAGO',         icon:'📋', label:'ISSUE FRAGO',  sub:'Standing LOGPAC', col:'#cc88ff'},
+              {type:'PRIORITY_PUSH', icon:'★',  label:'SET PRIORITY', sub:'+8% RDNS',        col:'#ff8800'},
+            ].map((a:any) => (
+              <button key={a.type} onClick={() => {
+                AudioEngine.resume()
+                if (a.type === 'FRAGO') { AudioEngine.playTick(true); setFragoOpen(fo => !fo) }
+                else { AudioEngine.playAlert('PRIORITY'); if (executeAction) executeAction({ unitId:selUnit.id, actionType:a.type }) }
+              }} style={{padding:'8px 4px',borderRadius:3,cursor:'pointer',
+                background: a.type==='FRAGO'&&fragoOpen ? `${a.col}25` : `${a.col}12`,
+                border:`1px solid ${a.type==='FRAGO'&&fragoOpen ? a.col : a.col+'50'}`,
+                color:a.col,fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:12,
+                lineHeight:1.3,textAlign:'center',WebkitTapHighlightColor:'transparent'}}>
+                <div style={{fontSize:16,marginBottom:2}}>{a.icon}</div>{a.label}
+                <div style={{fontSize:8,fontFamily:'Share Tech Mono,monospace',marginTop:3,opacity:0.7}}>{a.sub}</div>
+              </button>
+            ))}
+          </div>
+          {fragoOpen && <FragoPanel selUnit={selUnit} onClose={() => setFragoOpen(false)} />}
+        </div>
+      )}
+
+      {okUnits.length > 0 && (
+        <div style={{borderTop:'1px solid #1a3a20',paddingTop:6}}>
+          <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:2,marginBottom:5}}>OTHER UNITS</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:3}}>
+            {okUnits.map((u:any) => (
+              <div key={u.id} style={{display:'flex',alignItems:'center',gap:5,padding:'3px 6px',background:'rgba(0,0,0,0.2)',borderRadius:3}}>
+                <span style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:11,color:'#4a7a54',flex:1}}>{u.shortName}</span>
+                <div style={{width:28,height:3,background:'#0d1f10',borderRadius:2,overflow:'hidden'}}>
+                  <div style={{height:'100%',width:`${u.readiness}%`,background:getColor(u.readiness)}}/>
+                </div>
+                <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:getColor(u.readiness),width:28,textAlign:'right'}}>{Math.round(u.readiness)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── SUPPLY TAB ────────────────────────────────────────────────────────────────
+function SupplyTab({ allConvoys, currentDay }: { allConvoys:any[]; currentDay:number }) {
+  const CLS = ['CL I','CL II','CL III','CL IV','CL V','CL VIII','CL IX']
+  const safe = (allConvoys||[]).filter(Boolean)
+  const transit = safe.filter((c:any) => c?.status === 'EN_ROUTE')
+  const done    = safe.filter((c:any) => c?.status === 'DELIVERED')
+  const standingOrders = useGameStore(s => (s as any).standingOrders || {})
+  const activeOrders = Object.entries(standingOrders).filter(([,o]:any) => o?.active)
+
+  return (
+    <div>
+      {activeOrders.length > 0 && (
+        <div style={{marginBottom:10,padding:'8px 10px',background:'rgba(0,255,136,0.05)',border:'1px solid #00ff8830',borderRadius:4}}>
+          <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#00ff88',letterSpacing:2,marginBottom:5}}>
+            ✓ STANDING ORDERS — {activeOrders.length} FRAGO{activeOrders.length>1?'s':''}
+          </div>
+          {activeOrders.map(([destId, o]:any) => (
+            <div key={destId} style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#2d5a32',padding:'2px 0'}}>
+              → {destId.replace(/_/g,' ')} · {o.assetType} · {(o.cargo||[]).filter((c:any)=>c?.amount>0).map((c:any)=>`${CLS[c.supplyClass]??'?'}:${c.amount}%`).join(' ')}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,letterSpacing:3,color:'#2d5a32',marginBottom:10}}>
+        LIVE CONVOY MISSIONS — {transit.length} IN TRANSIT
+      </div>
+
+      {transit.length === 0 && (
+        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:'#1a3a20',textAlign:'center',padding:'20px 0'}}>
+          NO CONVOYS IN TRANSIT — DISPATCH FROM MAP
+        </div>
+      )}
+
+      {transit.map((c:any, idx:number) => {
+        if (!c?.toUnitId) return null
+        const travel  = Math.max(1, c.travelDays || 1)
+        const elapsed = Math.max(0, (currentDay||1) - (c.departedDay||1))
+        const daysLeft = Math.max(0, travel - elapsed)
+        const pct = Math.min(100, Math.round((elapsed / travel) * 100))
+        const col  = c.assetType==='AIR'||c.assetType==='HELO' ? '#00aaff' : c.assetType==='SEA' ? '#4488ff' : '#00ff88'
+        const icon = c.assetType==='AIR' ? '✈' : c.assetType==='HELO' ? '🚁' : c.assetType==='SEA' ? '⛴' : '🚚'
+        const cargoStr = (c.cargo||[]).filter((x:any) => x?.amount>0).map((x:any) => `${CLS[x.supplyClass]??'?'}:${x.amount}%`).join(' ')
+        return (
+          <div key={c.id||idx} style={{marginBottom:8,padding:'8px 10px',borderRadius:4,background:`${col}08`,border:`1px solid ${col}30`}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}>
+              <span style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:14,color:col}}>
+                {icon} {c.assetType||'GND'} → {(c.toUnitId||'').replace(/_/g,' ')}
+                {c.isStandingOrder && <span style={{marginLeft:6,fontSize:9,color:`${col}70`}}>AUTO</span>}
+              </span>
+              <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:daysLeft<=1?'#ff8800':col}}>ETA D+{daysLeft}</span>
+            </div>
+            <div style={{height:4,background:'#0d1f10',borderRadius:2,marginBottom:4}}>
+              <div style={{height:'100%',width:`${pct}%`,background:col,borderRadius:2,transition:'width .5s'}}/>
+            </div>
+            <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:`${col}80`}}>{cargoStr||'CARGO EN ROUTE'}</div>
+          </div>
+        )
+      })}
+
+      {done.length > 0 && (
+        <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #1a3a20'}}>
+          <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:2,marginBottom:5}}>DELIVERED: {done.length}</div>
+          {done.slice(-3).map((c:any, idx:number) => (
+            <div key={c?.id||idx} style={{display:'flex',justifyContent:'space-between',padding:'3px 6px',fontSize:10,fontFamily:'Share Tech Mono,monospace',color:'#2d5a32'}}>
+              <span>✓ {c?.assetType||'GND'} → {(c?.toUnitId||'').replace(/_/g,' ')}</span>
+              <span>D{c?.departedDay}+{c?.travelDays}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── FEED TAB ──────────────────────────────────────────────────────────────────
+function FeedTab({ feedEvents }: { feedEvents:any[] }) {
+  if (!feedEvents?.length) return (
+    <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:'#1a3a20',textAlign:'center',padding:'24px 0'}}>
+      NO ACTIVE EVENTS
+    </div>
+  )
+  return (
+    <div>
+      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,letterSpacing:3,color:'#2d5a32',marginBottom:10}}>BATTLEFIELD INTEL FEED</div>
+      {feedEvents.slice(0,12).map((ev:any, idx:number) => {
+        if (!ev) return null
+        const isFlash    = ev.priority === 'FLASH'
+        const isPriority = ev.priority === 'PRIORITY'
+        const accent = isFlash ? '#ff4444' : isPriority ? '#ff8800' : '#2ecc71'
+        const title  = ev.title || (ev.report||'').slice(0,40) || 'INTEL'
+        const body   = (ev.report || ev.text || '').slice(0,120)
+        return (
+          <div key={ev.id||idx} style={{marginBottom:8,padding:'8px 10px',borderRadius:4,background:isFlash?'rgba(255,50,50,.08)':'rgba(0,20,8,.5)',border:`1px solid ${accent}30`}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+              <span style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:13,color:accent,flex:1,marginRight:6}}>{title}</span>
+              <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:accent,border:`1px solid ${accent}60`,padding:'1px 5px',borderRadius:2,flexShrink:0}}>{ev.priority||'ROUTINE'}</span>
+            </div>
+            {body && <div style={{fontFamily:'Barlow,sans-serif',fontSize:11,color:'#4a7a54',lineHeight:1.4}}>{body}{(ev.report?.length??0)>120?'…':''}</div>}
+          </div>
+        )
+      })}
     </div>
   )
 }
