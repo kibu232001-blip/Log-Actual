@@ -232,7 +232,7 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
           id: c.id,
           position,
           icon: getConvoySprite(c),
-          size: zoom >= 8 ? 56 : zoom >= 6 ? 40 : 28,
+          size: zoom >= 10 ? 48 : zoom >= 8 ? 36 : zoom >= 6 ? 24 : 16,
         }
       }).filter(Boolean)
 
@@ -245,7 +245,7 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
       getPosition: (d: any) => d.position,
       getSize:     (d: any) => d.size,
       sizeUnits:   'pixels',
-      billboard:   false,
+      billboard:   true,   // always face camera — important for 3D pitch
       pickable:    false,
     })
 
@@ -258,7 +258,7 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
           id: n.id,
           position: [n.lng, n.lat] as [number, number],
           icon: getNodeSprite(unit, n.nodeType),
-          size: zoom >= 8 ? 52 : zoom >= 6 ? 38 : 26,
+          size: zoom >= 10 ? 44 : zoom >= 8 ? 32 : zoom >= 6 ? 22 : 14,
         }
       })
 
@@ -271,7 +271,7 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
       getPosition: (d: any) => d.position,
       getSize:     (d: any) => d.size,
       sizeUnits:   'pixels',
-      billboard:   false,
+      billboard:   true,
       pickable:    false,
     })
 
