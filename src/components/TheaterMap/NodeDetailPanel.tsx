@@ -39,12 +39,37 @@ function ConvoyDispatch({ node, unit, currentDay, onDispatch, onCancel }: Dispat
   const weather = useGameStore(s => (s as any).weather || 'CLEAR')
   const theater = getTheaterNetwork(activeScenarioId)
 
-  const sourceOptions = allUnits.filter((u:any) =>
+  // Unit sources — combat units that can donate supply
+  const unitSources = allUnits.filter((u:any) =>
     u.id !== (node.unitId || node.id) &&
     u.status !== 'DARK' &&
     Math.max(u.supplyLevels?.CL_I||0, u.supplyLevels?.CL_III||0, u.supplyLevels?.CL_V||0) > 10
-  )
+  ).map((u:any) => ({
+    id: u.id,
+    name: u.shortName || u.name,
+    isDepot: false,
+    minSupply: Math.round(Math.min(u.supplyLevels?.CL_I||100, u.supplyLevels?.CL_III||100, u.supplyLevels?.CL_V||100)),
+    cl1: Math.round(u.supplyLevels?.CL_I||0),
+    cl3: Math.round(u.supplyLevels?.CL_III||0),
+    cl5: Math.round(u.supplyLevels?.CL_V||0),
+    transitMultiplier: 1,
+  }))
+
+  // Depot/ASP sources — theater nodes with deep stock, 3× transit time
+  const depotSources = theater.nodes
+    .filter((n:any) => ['DEPOT','ASP','SEAPORT','AERIAL_PORT'].includes(n.nodeType) && n.id !== (node.unitId||node.id))
+    .map((n:any) => ({
+      id: n.id,
+      name: n.short || n.name,
+      isDepot: true,
+      minSupply: 99,  // Depots represent deep theater stock — always available
+      cl1: 99, cl3: 99, cl5: 99,
+      transitMultiplier: 3,  // 3× longer pipeline from rear
+    }))
+
+  const sourceOptions = [...unitSources, ...depotSources]
   const [sourceId, setSourceId] = React.useState<string>(sourceOptions[0]?.id || '')
+  const selectedSource = sourceOptions.find(s => s.id === sourceId)
   const [selectedRouteId, setSelectedRouteId] = React.useState<string>('')
 
   // Find all LOCs that connect source → destination (direct or via hops)
@@ -81,7 +106,8 @@ function ConvoyDispatch({ node, unit, currentDay, onDispatch, onCancel }: Dispat
   const wMult = weather==='STORM'?1.5:weather==='FOG'?1.2:weather==='RAIN'?1.1:1.0
   const base = isAir?1:assetType==='SEA'?3:totalLoad>60?3:2
   const routePenalty = routeContested ? 1 : 0
-  const finalETA = Math.max(1, Math.round((base + routePenalty) * wMult))
+  const depotMult = selectedSource?.transitMultiplier || 1
+  const finalETA = Math.max(1, Math.round((base + routePenalty) * wMult * depotMult))
 
   const threatCol = (t:string) => t==='HIGH'?'#ff4444':t==='MEDIUM'?'#ffaa00':'#2d5a32'
   const statusCol = (s:string) => s==='INTERDICTED'?'#ff2200':s==='CONTESTED'?'#ff8800':'#2d5a32'
@@ -109,37 +135,73 @@ function ConvoyDispatch({ node, unit, currentDay, onDispatch, onCancel }: Dispat
 
       {/* ── SOURCE UNIT ── */}
       <div style={{padding:'8px 10px',background:'rgba(0,0,0,0.3)',borderRadius:4,border:'1px solid #1a3a20'}}>
-        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:2,marginBottom:6}}>① SUPPLY SOURCE — SELECT DONOR UNIT</div>
-        <div style={{display:'flex',flexDirection:'column',gap:3}}>
-          {sourceOptions.length === 0 && (
-            <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:'#ff4444'}}>NO VIABLE SOURCE UNITS</div>
-          )}
-          {sourceOptions.map((u:any) => {
-            const s3 = Math.round(u.supplyLevels?.CL_III||0)
-            const s1 = Math.round(u.supplyLevels?.CL_I||0)
-            const s5 = Math.round(u.supplyLevels?.CL_V||0)
-            const minS = Math.min(s1,s3,s5)
-            const col = minS>60?'#00ff88':minS>30?'#ffaa00':'#ff6644'
-            const isSel = sourceId === u.id
-            return (
-              <button key={u.id} onClick={()=>setSourceId(u.id)} style={{
-                display:'flex',justifyContent:'space-between',alignItems:'center',
-                padding:'6px 8px',borderRadius:3,cursor:'pointer',textAlign:'left',
-                background:isSel?`${col}18`:'rgba(0,0,0,0.2)',
-                border:`${isSel?2:1}px solid ${isSel?col:'#1a3a20'}`,
-                WebkitTapHighlightColor:'transparent',
-              }}>
-                <div>
-                  <div style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:14,color:isSel?col:'#4a7a54'}}>{u.shortName||u.name}</div>
-                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',marginTop:1}}>
-                    CL I:{s1}% · CL III:{s3}% · CL V:{s5}%
-                  </div>
-                </div>
-                <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:13,color:col,fontWeight:700}}>{minS}%</div>
-              </button>
-            )
-          })}
-        </div>
+        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',letterSpacing:2,marginBottom:6}}>① SUPPLY SOURCE</div>
+
+        {/* Forward units */}
+        {unitSources.length > 0 && (
+          <div style={{marginBottom:6}}>
+            <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:7,color:'#1a4a20',letterSpacing:2,marginBottom:4}}>FORWARD UNITS</div>
+            <div style={{display:'flex',flexDirection:'column',gap:3}}>
+              {unitSources.map((src:any) => {
+                const col = src.minSupply>60?'#00ff88':src.minSupply>30?'#ffaa00':'#ff6644'
+                const isSel = sourceId === src.id
+                return (
+                  <button key={src.id} onClick={()=>setSourceId(src.id)} style={{
+                    display:'flex',justifyContent:'space-between',alignItems:'center',
+                    padding:'6px 8px',borderRadius:3,cursor:'pointer',textAlign:'left',
+                    background:isSel?`${col}18`:'rgba(0,0,0,0.2)',
+                    border:`${isSel?2:1}px solid ${isSel?col:'#1a3a20'}`,
+                    WebkitTapHighlightColor:'transparent',
+                  }}>
+                    <div>
+                      <div style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:14,color:isSel?col:'#4a7a54'}}>{src.name}</div>
+                      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',marginTop:1}}>
+                        CL I:{src.cl1}% · CL III:{src.cl3}% · CL V:{src.cl5}%
+                      </div>
+                    </div>
+                    <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:13,color:col,fontWeight:700}}>{src.minSupply}%</div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Depot / ASP sources — long pipeline */}
+        {depotSources.length > 0 && (
+          <div>
+            <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:7,color:'#1a4a4a',letterSpacing:2,marginBottom:4}}>
+              DEPOTS / ASPs — ×3 TRANSIT TIME
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:3}}>
+              {depotSources.map((src:any) => {
+                const isSel = sourceId === src.id
+                return (
+                  <button key={src.id} onClick={()=>setSourceId(src.id)} style={{
+                    display:'flex',justifyContent:'space-between',alignItems:'center',
+                    padding:'6px 8px',borderRadius:3,cursor:'pointer',textAlign:'left',
+                    background:isSel?'rgba(0,170,255,0.12)':'rgba(0,0,0,0.2)',
+                    border:`${isSel?2:1}px solid ${isSel?'#00aaff':'#1a3a20'}`,
+                    WebkitTapHighlightColor:'transparent',
+                  }}>
+                    <div>
+                      <div style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:14,color:isSel?'#00aaff':'#3a6a6a'}}>{src.name}</div>
+                      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#1a4a4a',marginTop:1}}>THEATER STOCK — DEEP PIPELINE</div>
+                    </div>
+                    <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:isSel?'#00aaff':'#2a5a5a',textAlign:'right'}}>
+                      <div>DEEP</div>
+                      <div style={{fontSize:7,marginTop:1,color:'#ffaa00'}}>×3 TIME</div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {sourceOptions.length === 0 && (
+          <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:'#ff4444'}}>NO VIABLE SOURCE UNITS</div>
+        )}
       </div>
 
       {/* ── ROUTE SELECTION ── */}

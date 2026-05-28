@@ -1068,10 +1068,12 @@ export const useGameStore = create<Store>((set,get)=>({
     }
 
     // ── DEDUCT FROM SOURCE UNIT IMMEDIATELY ──────────────────────────────────
-    // Supplies are removed from source the moment the convoy departs
+    // Only deduct from combat units — depots represent deep theater stock
     const updatedUnitsDispatch = { ...s.units }
     const sourceUnit = (updatedUnitsDispatch as any)[fromNodeId]
-    if (sourceUnit) {
+    const isDepotSource = !sourceUnit  // if no unit found, it's a depot node
+
+    if (sourceUnit && !isDepotSource) {
       const newLvls = { ...sourceUnit.supplyLevels }
       cargo.forEach((item: {supplyClass:number; amount:number}) => {
         const classKeys = ['CL_I','CL_II','CL_III','CL_IV','CL_V','CL_VIII','CL_IX']
