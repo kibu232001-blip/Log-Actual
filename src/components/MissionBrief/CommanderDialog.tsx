@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { BriefingTeam, BriefingCharacter, BriefingSection } from '../../data/briefingTeams'
 import AudioEngine from '../../engine/AudioEngine'
+import { generateSpeech } from '../../engine/VoiceService'
 
 function Portrait({ style, color }: { style: string; color: string }) {
   const extras: Record<string,string> = {
@@ -44,18 +45,42 @@ function TypeWriter({ text, speed=32, onDone }: { text:string; speed?:number; on
   )
 }
 
-function speakLine(text: string, char: BriefingCharacter) {
+// Audio element for ElevenLabs playback
+let activeAudio: HTMLAudioElement | null = null
+
+async function speakLine(text: string, char: BriefingCharacter, lineIdx: number) {
+  // Stop any playing audio
+  if (activeAudio) { activeAudio.pause(); activeAudio = null }
+
+  // Duck BGM while commander speaks
+  AudioEngine.duckBGM(6000)
+
+  try {
+    const url = await generateSpeech(char.id, text, lineIdx, char.portraitStyle)
+    if (!url) {
+      // Fallback to browser TTS if ElevenLabs fails
+      fallbackSpeak(text, char)
+      return
+    }
+    const audio = new Audio(url)
+    audio.volume = 0.92
+    activeAudio = audio
+    audio.play().catch(() => fallbackSpeak(text, char))
+  } catch(e) {
+    fallbackSpeak(text, char)
+  }
+}
+
+function fallbackSpeak(text: string, char: BriefingCharacter) {
   if (!window.speechSynthesis) return
   window.speechSynthesis.cancel()
   const utter = new SpeechSynthesisUtterance(text)
-  utter.rate  = char.voice.rate
-  utter.pitch = char.voice.pitch
-  utter.volume = 0.85
+  utter.rate = char.voice.rate; utter.pitch = char.voice.pitch; utter.volume = 0.85
   const voices = window.speechSynthesis.getVoices()
   const match = voices.find(v =>
     v.lang.startsWith('en') &&
-    (char.voice.gender === 'F' ? /female|zira|samantha|karen|moira|fiona|victoria/i.test(v.name)
-                               : /male|david|daniel|mark|alex|fred/i.test(v.name))
+    (char.voice.gender === 'F' ? /female|zira|samantha|karen/i.test(v.name)
+                               : /male|david|daniel|mark|alex/i.test(v.name))
   ) ?? voices.find(v => v.lang.startsWith('en'))
   if (match) utter.voice = match
   window.speechSynthesis.speak(utter)
@@ -96,7 +121,7 @@ export default function CommanderDialog({ team, activeTab, selectedMemberId, onC
   useEffect(() => {
     if (!section || !char) return
     const line = section.lines[lineIdx]
-    if (line) speakLine(line, char)
+    if (line) speakLine(line, char, lineIdx)
   }, [lineIdx, activeTab, selectedMemberId])
 
   // Fallback: no data for this selection
