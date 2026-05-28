@@ -79,6 +79,27 @@ export default function TopBar() {
   const nextResupplyDay = useGameStore(s => (s as any).nextTheaterResupplyDay ?? 5)
   const daysToResupply = Math.max(0, nextResupplyDay - currentDay)
   const [bgmOn, setBgmOn] = useState(true)
+  const [canInstall, setCanInstall] = useState(false)
+
+  // Listen for PWA install prompt
+  useEffect(() => {
+    const check = () => setCanInstall(!!(window as any).__pwaInstallPrompt)
+    check()
+    window.addEventListener('beforeinstallprompt', check)
+    const interval = setInterval(check, 2000)
+    return () => { window.removeEventListener('beforeinstallprompt', check); clearInterval(interval) }
+  }, [])
+
+  const handleInstall = async () => {
+    const prompt = (window as any).__pwaInstallPrompt
+    if (!prompt) return
+    prompt.prompt()
+    const { outcome } = await prompt.userChoice
+    if (outcome === 'accepted') {
+      ;(window as any).__pwaInstallPrompt = null
+      setCanInstall(false)
+    }
+  }
 
   const sigmaColor = metrics.sigmaLevel >= 3 ? '#00ff88' : metrics.sigmaLevel >= 2 ? '#ffaa00' : '#ff4444'
 
@@ -171,6 +192,15 @@ export default function TopBar() {
             color: bgmOn ? '#2a8a5a' : '#1a3a20', padding:'4px 6px', cursor:'pointer',
             fontSize:14, flexShrink:0, WebkitTapHighlightColor:'transparent',
           }} title={bgmOn ? 'BGM ON' : 'BGM OFF'}>{bgmOn ? '🔊' : '🔇'}</button>
+          {canInstall && (
+            <button onClick={handleInstall} style={{
+              background:'rgba(0,255,136,0.15)', border:'1px solid #00ff88',
+              color:'#00ff88', padding:'3px 8px', borderRadius:3, cursor:'pointer',
+              fontFamily:'Share Tech Mono,monospace', fontSize:10, letterSpacing:1,
+              flexShrink:0, WebkitTapHighlightColor:'transparent',
+              animation:'sw-pulse 1.5s ease-in-out infinite',
+            }}>⬇ INSTALL</button>
+          )}
         </div>
 
         {/* Row 2: Compact metrics strip - slim on mobile */}
@@ -259,6 +289,14 @@ export default function TopBar() {
           padding:'3px 6px', cursor:'pointer', fontSize:16,
           WebkitTapHighlightColor:'transparent',
         }} title={bgmOn?'BGM ON':'BGM OFF'}>{bgmOn ? '🔊' : '🔇'}</button>
+        {canInstall && (
+          <button onClick={handleInstall} style={{
+            background:'rgba(0,255,136,0.15)', border:'1px solid #00ff88',
+            color:'#00ff88', padding:'3px 10px', borderRadius:3, cursor:'pointer',
+            fontFamily:'Share Tech Mono,monospace', fontSize:11, letterSpacing:1,
+            animation:'sw-pulse 1.5s ease-in-out infinite',
+          }}>⬇ INSTALL APP</button>
+        )}
       </div>
 
       <div style={{ display:'flex', alignItems:'center', gap:14 }}>

@@ -209,7 +209,7 @@ const PACIFIC_PUSH: TheaterNetwork = {
     { id:'DEP_CRL',  name:'Camp Carroll',             short:'DEP-CRL', type:'square',  nodeType:'DEPOT',       lat:35.9900, lng:128.4200, unitId:null               },
     { id:'DEP_DAG',  name:'Camp Henry (Daegu)',       short:'DEP-DAG', type:'square',  nodeType:'DEPOT',       lat:35.8561, lng:128.6060, unitId:null               },
     { id:'ASP_CCA',  name:'ASP Camp Casey Area',      short:'ASP-CCA', type:'diamond', nodeType:'ASP',         lat:37.9000, lng:127.0600, unitId:null               },
-    { id:'FARP_HUM', name:'FARP Humphreys',           short:'FARP-HUM',type:'square',  nodeType:'FARP',        lat:36.9746, lng:127.0289, unitId:null               },
+    { id:'FARP_HUM', name:'FARP Humphreys',           short:'FARP-HUM',type:'square',  nodeType:'FARP',        lat:37.0100, lng:127.0700, unitId:null               },
     { id:'FOB_HUM',  name:'FOB Iron (Camp Humphreys)',short:'FOB-I',   type:'circle',  nodeType:'FOB',         lat:36.9746, lng:127.0289, unitId:'FOB1'             },
     { id:'FOB_CSY',  name:'FOB Valor (Camp Casey)',   short:'FOB-V',   type:'circle',  nodeType:'FOB',         lat:37.9011, lng:127.0594, unitId:'FOB2'             },
     { id:'FOB_DAG',  name:'FOB Eagle (Camp Walker)',  short:'FOB-E',   type:'circle',  nodeType:'FOB',         lat:35.8561, lng:128.5000, unitId:'FOB3'             },

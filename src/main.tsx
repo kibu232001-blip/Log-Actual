@@ -6,6 +6,12 @@ if ('serviceWorker' in navigator) {
   })
 }
 
+// Capture install prompt event globally so any component can trigger it
+window.addEventListener('beforeinstallprompt', (e: any) => {
+  e.preventDefault()
+  ;(window as any).__pwaInstallPrompt = e
+})
+
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
