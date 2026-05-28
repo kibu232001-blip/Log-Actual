@@ -730,12 +730,12 @@ export const useGameStore = create<Store>((set,get)=>({
 
     // Weather tables by campaign theater — only possible conditions per region
     const WEATHER_TABLES: Record<string, Array<[number, string]>> = {
-      CAMPAIGN_1: [[0.05,'STORM'],[0.12,'RAIN'],[0.18,'FOG'],[0.24,'SNOW'],[1,'CLEAR']],       // Europe — snow possible
-      CAMPAIGN_2: [[0.06,'STORM'],[0.14,'RAIN'],[0.20,'FOG'],[0.28,'SNOW'],[1,'CLEAR']],       // Baltic — heavy snow
-      CAMPAIGN_3: [[0.04,'STORM'],[0.10,'SANDSTORM'],[0.18,'FOG'],[0.24,'RAIN'],[1,'CLEAR']], // Desert — sandstorms
-      CAMPAIGN_4: [[0.04,'STORM'],[0.10,'SANDSTORM'],[0.16,'FOG'],[0.22,'RAIN'],[1,'CLEAR']], // Gulf — sandstorms
-      CAMPAIGN_5: [[0.06,'TYPHOON'],[0.14,'SQUALL'],[0.22,'RAIN'],[0.28,'FOG'],[1,'CLEAR']], // Pacific — typhoons
-      CAMPAIGN_6: [[0.06,'TYPHOON'],[0.14,'SQUALL'],[0.22,'RAIN'],[0.28,'FOG'],[1,'CLEAR']], // Island — typhoons
+      CAMPAIGN_1: [[0.08,'STORM'],[0.22,'RAIN'],[0.32,'FOG'],[0.44,'SNOW'],[1,'CLEAR']],       // Europe — 44% bad weather
+      CAMPAIGN_2: [[0.10,'STORM'],[0.24,'RAIN'],[0.34,'FOG'],[0.50,'SNOW'],[1,'CLEAR']],       // Baltic — 50% bad weather, heavy snow
+      CAMPAIGN_3: [[0.08,'STORM'],[0.22,'SANDSTORM'],[0.32,'FOG'],[0.40,'RAIN'],[1,'CLEAR']], // Desert — 40% bad weather, sandstorms
+      CAMPAIGN_4: [[0.08,'STORM'],[0.20,'SANDSTORM'],[0.30,'FOG'],[0.38,'RAIN'],[1,'CLEAR']], // Gulf — sandstorms
+      CAMPAIGN_5: [[0.10,'TYPHOON'],[0.24,'SQUALL'],[0.38,'RAIN'],[0.46,'FOG'],[1,'CLEAR']], // Pacific — 46% bad weather
+      CAMPAIGN_6: [[0.10,'TYPHOON'],[0.24,'SQUALL'],[0.38,'RAIN'],[0.46,'FOG'],[1,'CLEAR']], // Island hop
     }
     const table = WEATHER_TABLES[scenId] || WEATHER_TABLES.CAMPAIGN_1
     const currentWeather = (table.find(([threshold]) => weatherRoll < threshold)?.[1]) || 'CLEAR'

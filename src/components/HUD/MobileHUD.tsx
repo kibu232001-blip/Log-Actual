@@ -453,28 +453,79 @@ function SupplyTab({ allConvoys, currentDay }: { allConvoys:any[]; currentDay:nu
 
 // ── FEED TAB ──────────────────────────────────────────────────────────────────
 function FeedTab({ feedEvents }: { feedEvents:any[] }) {
+  const [expanded, setExpanded] = useState<string|null>(null)
+
   if (!feedEvents?.length) return (
     <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:'#1a3a20',textAlign:'center',padding:'24px 0'}}>
       NO ACTIVE EVENTS
     </div>
   )
+
+  const acknowledge = (evId: string) => {
+    const store = useGameStore.getState() as any
+    if (store.appliedBattlefieldEvents) {
+      const updated = store.appliedBattlefieldEvents.map((e:any) =>
+        e.id === evId ? { ...e, acknowledged: true } : e
+      )
+      useGameStore.setState({ appliedBattlefieldEvents: updated } as any)
+    }
+  }
+
   return (
     <div>
-      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,letterSpacing:3,color:'#2d5a32',marginBottom:10}}>BATTLEFIELD INTEL FEED</div>
-      {feedEvents.slice(0,12).map((ev:any, idx:number) => {
+      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,letterSpacing:3,color:'#2d5a32',marginBottom:10}}>
+        BATTLEFIELD INTEL FEED — TAP TO ACKNOWLEDGE
+      </div>
+      {feedEvents.slice(0,15).map((ev:any, idx:number) => {
         if (!ev) return null
         const isFlash    = ev.priority === 'FLASH'
         const isPriority = ev.priority === 'PRIORITY'
-        const accent = isFlash ? '#ff4444' : isPriority ? '#ff8800' : '#2ecc71'
-        const title  = ev.title || (ev.report||'').slice(0,40) || 'INTEL'
-        const body   = (ev.report || ev.text || '').slice(0,120)
+        const isAck      = ev.acknowledged
+        const accent     = isFlash ? '#ff4444' : isPriority ? '#ff8800' : '#2ecc71'
+        const dimmed     = isAck ? 0.45 : 1
+        const title      = ev.title || (ev.report||'').slice(0,40) || 'INTEL'
+        const body       = (ev.report || ev.text || '')
+        const isExpanded = expanded === (ev.id||String(idx))
+        const evId       = ev.id || String(idx)
+
         return (
-          <div key={ev.id||idx} style={{marginBottom:8,padding:'8px 10px',borderRadius:4,background:isFlash?'rgba(255,50,50,.08)':'rgba(0,20,8,.5)',border:`1px solid ${accent}30`}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
-              <span style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:13,color:accent,flex:1,marginRight:6}}>{title}</span>
-              <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:accent,border:`1px solid ${accent}60`,padding:'1px 5px',borderRadius:2,flexShrink:0}}>{ev.priority||'ROUTINE'}</span>
+          <div key={evId}
+            onClick={() => {
+              setExpanded(isExpanded ? null : evId)
+              if (!isAck) acknowledge(evId)
+            }}
+            style={{
+              marginBottom:6, padding:'8px 10px', borderRadius:4,
+              background: isFlash && !isAck ? 'rgba(255,50,50,.10)' : 'rgba(0,20,8,.5)',
+              border:`1px solid ${isAck ? accent+'20' : accent+'50'}`,
+              cursor:'pointer', opacity:dimmed,
+              WebkitTapHighlightColor:'transparent',
+              transition:'opacity .3s, border-color .3s',
+            }}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:isExpanded?6:0}}>
+              <span style={{fontFamily:'Barlow Condensed,sans-serif',fontWeight:700,fontSize:13,color:isAck?accent+'80':accent,flex:1,marginRight:6,lineHeight:1.2}}>
+                {!isAck && (isFlash||isPriority) && <span style={{marginRight:5}}>●</span>}
+                {title}
+              </span>
+              <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+                <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:accent,border:`1px solid ${accent}60`,padding:'1px 5px',borderRadius:2}}>
+                  {ev.priority||'ROUTINE'}
+                </span>
+                <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:accent+'60'}}>
+                  {isExpanded ? '▲' : '▼'}
+                </span>
+              </div>
             </div>
-            {body && <div style={{fontFamily:'Barlow,sans-serif',fontSize:11,color:'#4a7a54',lineHeight:1.4}}>{body}{(ev.report?.length??0)>120?'…':''}</div>}
+            {isExpanded && body && (
+              <div style={{fontFamily:'Barlow,sans-serif',fontSize:11,color:'#4a7a54',lineHeight:1.5,marginTop:4,paddingTop:4,borderTop:`1px solid ${accent}20`}}>
+                {body}
+              </div>
+            )}
+            {isExpanded && isAck && (
+              <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#2d5a32',marginTop:4,letterSpacing:1}}>
+                ✓ ACKNOWLEDGED
+              </div>
+            )}
           </div>
         )
       })}
