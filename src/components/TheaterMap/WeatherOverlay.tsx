@@ -1,65 +1,107 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useGameStore } from '../../store/gameStore'
 
-function makeDrops(count: number, angle = 15) {
+// ── PARTICLE GENERATORS ───────────────────────────────────────────────────────
+function makeDrops(count: number, angle = 15, lenMult = 1) {
   return Array.from({ length: count }, (_, i) => ({
-    id: i, left: Math.random() * 110 - 5,
+    id: i, left: Math.random() * 120 - 10,
     delay: Math.random() * 2,
-    duration: 0.3 + Math.random() * 0.6,
-    opacity: 0.3 + Math.random() * 0.5,
-    length: 8 + Math.random() * 18,
-    angle: angle + (Math.random() - 0.5) * 8,
+    duration: (0.3 + Math.random() * 0.5) / lenMult,
+    opacity: 0.3 + Math.random() * 0.55,
+    length: (8 + Math.random() * 16) * lenMult,
+    angle: angle + (Math.random() - 0.5) * 10,
   }))
 }
 
-function makeSandParticles(count: number) {
+function makeSnow(count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    id: i,
+    left: Math.random() * 110 - 5,
+    delay: Math.random() * 5,
+    duration: 3 + Math.random() * 5,
+    opacity: 0.5 + Math.random() * 0.5,
+    size: 2 + Math.random() * 5,
+    drift: (Math.random() - 0.5) * 60,
+  }))
+}
+
+function makeSand(count: number) {
   return Array.from({ length: count }, (_, i) => ({
     id: i, top: Math.random() * 100,
     delay: Math.random() * 3,
-    duration: 0.8 + Math.random() * 1.2,
-    opacity: 0.4 + Math.random() * 0.5,
-    size: 2 + Math.random() * 4,
-    speed: 0.6 + Math.random() * 0.8,
+    duration: 0.6 + Math.random() * 1.0,
+    opacity: 0.3 + Math.random() * 0.55,
+    size: 1.5 + Math.random() * 4,
   }))
 }
 
-const RAIN_DROPS     = makeDrops(80, 15)
-const STORM_DROPS    = makeDrops(200, 20)
-const TYPHOON_DROPS  = makeDrops(300, 35)
-const SQUALL_DROPS   = makeDrops(150, 25)
-const SAND_PARTICLES = makeSandParticles(180)
+// Pre-generate particle sets
+const RAIN_D     = makeDrops(90,  15, 1)
+const STORM_D    = makeDrops(220, 22, 1.4)
+const TYPHOON_D  = makeDrops(300, 32, 1.2)
+const SQUALL_D   = makeDrops(160, 26, 1.1)
+const SNOW_P     = makeSnow(120)
+const SAND_P     = makeSand(200)
 
+// ── CSS ANIMATIONS ────────────────────────────────────────────────────────────
 const CSS = `
-  @keyframes rain-fall    { 0%{transform:translateY(-20px);opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{transform:translateY(110vh);opacity:0} }
-  @keyframes sand-blow    { 0%{transform:translateX(-60px);opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{transform:translateX(110vw);opacity:0} }
-  @keyframes lightning    { 0%,91%,94%,97%,100%{opacity:0} 92%,95%{opacity:.4} 93%,96%{opacity:.2} }
-  @keyframes typhoon-spin { 0%{transform:rotate(0deg) translateX(40px)} 100%{transform:rotate(360deg) translateX(40px)} }
-  @keyframes fog-drift    { 0%{transform:translateX(0);opacity:.2} 50%{transform:translateX(40px);opacity:.35} 100%{transform:translateX(0);opacity:.2} }
-  @keyframes fog-drift2   { 0%{transform:translateX(0);opacity:.15} 50%{transform:translateX(-30px);opacity:.25} 100%{transform:translateX(0);opacity:.15} }
-  @keyframes wx-fadein    { from{opacity:0} to{opacity:1} }
-  @keyframes wx-fadeout   { from{opacity:1} to{opacity:0} }
-  @keyframes squall-flash { 0%,85%,100%{opacity:0} 87%,92%{opacity:.25} }
-  @keyframes sand-haze    { 0%,100%{opacity:.3} 50%{opacity:.5} }
+  @keyframes rain-fall {
+    0%   { transform:translateY(-5vh) translateX(0); opacity:0 }
+    8%   { opacity:1 }
+    92%  { opacity:1 }
+    100% { transform:translateY(110vh) translateX(-15px); opacity:0 }
+  }
+  @keyframes snow-fall {
+    0%   { transform:translateY(-5vh) translateX(0); opacity:0 }
+    10%  { opacity:1 }
+    90%  { opacity:1 }
+    100% { transform:translateY(110vh) translateX(var(--drift,30px)); opacity:0 }
+  }
+  @keyframes sand-blow {
+    0%   { transform:translateX(-80px) scaleX(0.5); opacity:0 }
+    8%   { opacity:1; transform:translateX(-40px) scaleX(1) }
+    92%  { opacity:1 }
+    100% { transform:translateX(110vw) scaleX(1.2); opacity:0 }
+  }
+  @keyframes lightning {
+    0%,90%,94%,98%,100% { opacity:0 }
+    91%,95% { opacity:0.45 }
+    92%,96% { opacity:0.15 }
+  }
+  @keyframes lightning2 {
+    0%,82%,86%,90%,100% { opacity:0 }
+    83%,87% { opacity:0.5 }
+    84%,88% { opacity:0.2 }
+  }
+  @keyframes fog-drift  { 0%,100%{transform:translateX(0);opacity:.22} 50%{transform:translateX(45px);opacity:.38} }
+  @keyframes fog-drift2 { 0%,100%{transform:translateX(0);opacity:.14} 50%{transform:translateX(-35px);opacity:.26} }
+  @keyframes fog-drift3 { 0%,100%{transform:translateX(0) translateY(0);opacity:.18} 50%{transform:translateX(20px) translateY(-15px);opacity:.30} }
+  @keyframes typhoon-spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+  @keyframes sand-haze  { 0%,100%{opacity:.35} 50%{opacity:.55} }
+  @keyframes snow-haze  { 0%,100%{opacity:.12} 50%{opacity:.22} }
+  @keyframes wx-fadein  { from{opacity:0} to{opacity:1} }
+  @keyframes wx-fadeout { from{opacity:1} to{opacity:0} }
+  @keyframes atk-hit    { 0%{transform:translate(-50%,-50%) scale(.2);opacity:1} 100%{transform:translate(-50%,-50%) scale(3);opacity:0} }
 `
 
-interface WxInfo { label: string; emoji: string; color: string; bg: string }
+interface WxInfo { label: string; emoji: string; color: string }
 const WX_INFO: Record<string, WxInfo> = {
-  RAIN:      { label:'RAIN — CONVOY SPEED -30%',            emoji:'🌧', color:'#66aadd', bg:'rgba(10,20,35,.28)' },
-  STORM:     { label:'STORM — AIR OPS SUSPENDED',           emoji:'⛈', color:'#88aaff', bg:'rgba(5,10,25,.45)' },
-  FOG:       { label:'FOG — VISIBILITY DEGRADED',           emoji:'🌫', color:'#aaccbb', bg:'rgba(20,30,25,.22)' },
-  SANDSTORM: { label:'SANDSTORM — ALL OPS DEGRADED',        emoji:'🌪', color:'#cc9944', bg:'rgba(30,20,5,.55)' },
-  TYPHOON:   { label:'TYPHOON — ALL AIR/SEA SUSPENDED',     emoji:'🌀', color:'#8866ff', bg:'rgba(10,5,30,.55)' },
-  SQUALL:    { label:'TROPICAL SQUALL — AIR CORRIDORS CLOSED', emoji:'⛈', color:'#44aacc', bg:'rgba(5,15,25,.4)' },
+  RAIN:      { label:'RAIN — CONVOY SPEED -30%',               emoji:'🌧', color:'#66aadd' },
+  STORM:     { label:'STORM — AIR OPS SUSPENDED',              emoji:'⛈', color:'#88aaff' },
+  FOG:       { label:'FOG — VISIBILITY DEGRADED',              emoji:'🌫', color:'#aaccbb' },
+  SNOW:      { label:'SNOW — GROUND MOBILITY CRITICAL',        emoji:'❄️', color:'#c8e8ff' },
+  SANDSTORM: { label:'SANDSTORM — ALL OPS DEGRADED',           emoji:'🌪', color:'#cc9944' },
+  TYPHOON:   { label:'TYPHOON — ALL AIR/SEA SUSPENDED',        emoji:'🌀', color:'#8866ff' },
+  SQUALL:    { label:'TROPICAL SQUALL — AIR CORRIDORS CLOSED', emoji:'⛈', color:'#44aacc' },
 }
 
 export default function WeatherOverlay() {
-  const weather     = useGameStore(s => s.weather as string) || 'CLEAR'
-  const scenarioId  = useGameStore(s => (s as any).activeScenarioId || 'CAMPAIGN_1')
+  const weather = (useGameStore(s => s.weather as string) || 'CLEAR')
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
     if (weather !== 'CLEAR') setVisible(true)
-    else { const t = setTimeout(() => setVisible(false), 800); return () => clearTimeout(t) }
+    else { const t = setTimeout(() => setVisible(false), 900); return () => clearTimeout(t) }
   }, [weather])
 
   if (!visible && weather === 'CLEAR') return null
@@ -69,123 +111,175 @@ export default function WeatherOverlay() {
   return (
     <div style={{
       position:'absolute', inset:0, zIndex:50, pointerEvents:'none', overflow:'hidden',
-      animation: fading ? 'wx-fadeout .8s forwards' : 'wx-fadein .6s forwards',
+      animation: fading ? 'wx-fadeout .9s forwards' : 'wx-fadein .5s forwards',
     }}>
       <style>{CSS}</style>
 
-      {/* ── RAIN ──────────────────────────────────────────────────────────── */}
-      {weather === 'RAIN' && (
-        <>
-          <div style={{ position:'absolute', inset:0, background:'rgba(5,15,25,.22)' }}/>
-          {RAIN_DROPS.map(d => (
-            <div key={d.id} style={{
-              position:'absolute', left:`${d.left}%`, top:0,
-              width:'1.5px', height:`${d.length}px`,
-              background:`rgba(140,200,255,${d.opacity*.7})`,
-              transform:`rotate(${d.angle}deg)`,
-              animation:`rain-fall ${d.duration}s linear ${d.delay}s infinite`,
-              borderRadius:'1px',
-            }}/>
-          ))}
-        </>
-      )}
+      {/* ── RAIN ─────────────────────────────────────────────────────────── */}
+      {weather === 'RAIN' && (<>
+        <div style={{position:'absolute',inset:0,background:'rgba(5,15,25,.22)'}}/>
+        {RAIN_D.map(d=>(
+          <div key={d.id} style={{
+            position:'absolute', left:`${d.left}%`, top:0,
+            width:'1.5px', height:`${d.length}px`,
+            background:`rgba(140,200,255,${d.opacity*.75})`,
+            transform:`rotate(${d.angle}deg)`,
+            animation:`rain-fall ${d.duration}s linear ${d.delay}s infinite`,
+            borderRadius:'1px',
+          }}/>
+        ))}
+        {/* Puddle shimmer on ground */}
+        <div style={{position:'absolute',bottom:0,left:0,right:0,height:'18%',
+          background:'linear-gradient(to top,rgba(80,130,180,.08),transparent)',
+          animation:'fog-drift 7s ease-in-out infinite'}}/>
+      </>)}
+
+      {/* ── SNOW ─────────────────────────────────────────────────────────── */}
+      {weather === 'SNOW' && (<>
+        <div style={{position:'absolute',inset:0,background:'rgba(180,210,240,.06)',animation:'snow-haze 8s ease-in-out infinite'}}/>
+        {SNOW_P.map(p=>(
+          <div key={p.id} style={{
+            position:'absolute', left:`${p.left}%`, top:0,
+            width:`${p.size}px`, height:`${p.size}px`,
+            background:`rgba(220,235,255,${p.opacity})`,
+            borderRadius:'50%',
+            filter:'blur(0.5px)',
+            // @ts-ignore
+            '--drift':`${p.drift}px`,
+            animation:`snow-fall ${p.duration}s linear ${p.delay}s infinite`,
+          }}/>
+        ))}
+        {/* Ground snow accumulation */}
+        <div style={{position:'absolute',bottom:0,left:0,right:0,height:'6px',
+          background:'linear-gradient(to top,rgba(200,225,255,.15),transparent)'}}/>
+        {/* White-out haze */}
+        <div style={{position:'absolute',inset:0,
+          background:'radial-gradient(ellipse 140% 60% at 50% 100%,rgba(200,220,255,.08),transparent 70%)',
+          animation:'fog-drift 12s ease-in-out infinite'}}/>
+      </>)}
 
       {/* ── STORM ─────────────────────────────────────────────────────────── */}
-      {weather === 'STORM' && (
-        <>
-          <div style={{ position:'absolute', inset:0, background:'rgba(5,8,20,.48)' }}/>
-          {STORM_DROPS.map(d => (
-            <div key={d.id} style={{
-              position:'absolute', left:`${d.left}%`, top:0,
-              width:'2px', height:`${d.length}px`,
-              background:`rgba(180,200,255,${d.opacity})`,
-              transform:`rotate(${d.angle}deg)`,
-              animation:`rain-fall ${d.duration}s linear ${d.delay}s infinite`,
-            }}/>
-          ))}
-          <div style={{ position:'absolute', inset:0, background:'rgba(200,210,255,.95)', animation:'lightning 5s linear infinite' }}/>
-          <div style={{ position:'absolute', inset:0, background:'rgba(180,190,255,.6)',  animation:'lightning 8s linear 2s infinite' }}/>
-        </>
-      )}
+      {weather === 'STORM' && (<>
+        <div style={{position:'absolute',inset:0,background:'rgba(4,7,18,.50)'}}/>
+        {STORM_D.map(d=>(
+          <div key={d.id} style={{
+            position:'absolute', left:`${d.left}%`, top:0,
+            width:'2px', height:`${d.length}px`,
+            background:`rgba(170,195,255,${d.opacity})`,
+            transform:`rotate(${d.angle}deg)`,
+            animation:`rain-fall ${d.duration}s linear ${d.delay}s infinite`,
+          }}/>
+        ))}
+        {/* Lightning flashes — two independent timings */}
+        <div style={{position:'absolute',inset:0,background:'rgba(200,215,255,.95)',animation:'lightning 5s linear infinite'}}/>
+        <div style={{position:'absolute',inset:0,background:'rgba(180,200,255,.7)',animation:'lightning2 7s linear 1.3s infinite'}}/>
+        {/* Storm cloud layer */}
+        <div style={{position:'absolute',inset:0,
+          background:'linear-gradient(180deg,rgba(5,8,20,.55) 0%,rgba(8,12,28,.3) 40%,transparent 100%)'}}/>
+      </>)}
 
       {/* ── FOG ───────────────────────────────────────────────────────────── */}
-      {weather === 'FOG' && (
-        <>
-          <div style={{ position:'absolute', inset:0, background:'linear-gradient(180deg,rgba(60,80,70,.32) 0%,rgba(40,60,50,.16) 50%,rgba(60,80,70,.32) 100%)', animation:'fog-drift 9s ease-in-out infinite', backdropFilter:'blur(1px)' }}/>
-          <div style={{ position:'absolute', inset:0, background:'linear-gradient(90deg,rgba(50,70,60,.18) 0%,transparent 40%,rgba(50,70,60,.18) 100%)', animation:'fog-drift2 13s ease-in-out infinite' }}/>
-          <div style={{ position:'absolute', inset:0, background:'radial-gradient(ellipse 150% 60% at 50% 50%,transparent 25%,rgba(40,60,50,.28) 100%)' }}/>
-        </>
-      )}
+      {weather === 'FOG' && (<>
+        <div style={{position:'absolute',inset:0,
+          background:'linear-gradient(180deg,rgba(55,75,65,.34) 0%,rgba(35,55,45,.16) 50%,rgba(55,75,65,.34) 100%)',
+          animation:'fog-drift 9s ease-in-out infinite', backdropFilter:'blur(1.5px)'}}/>
+        <div style={{position:'absolute',inset:0,
+          background:'linear-gradient(90deg,rgba(45,65,55,.2) 0%,transparent 40%,rgba(45,65,55,.2) 100%)',
+          animation:'fog-drift2 13s ease-in-out infinite'}}/>
+        <div style={{position:'absolute',inset:0,
+          background:'linear-gradient(135deg,transparent 30%,rgba(50,70,60,.15) 50%,transparent 70%)',
+          animation:'fog-drift3 17s ease-in-out infinite'}}/>
+        <div style={{position:'absolute',inset:0,
+          background:'radial-gradient(ellipse 150% 60% at 50% 50%,transparent 20%,rgba(35,55,45,.30) 100%)'}}/>
+      </>)}
 
-      {/* ── SANDSTORM ─────────────────────────────────────────────────────── */}
-      {weather === 'SANDSTORM' && (
-        <>
-          <div style={{ position:'absolute', inset:0, background:'rgba(80,50,10,.55)', animation:'sand-haze 4s ease-in-out infinite' }}/>
-          <div style={{ position:'absolute', inset:0, background:'linear-gradient(90deg,rgba(150,100,20,.4),rgba(120,80,10,.2),rgba(160,110,30,.4))', animation:'fog-drift 6s ease-in-out infinite' }}/>
-          {SAND_PARTICLES.map(p => (
-            <div key={p.id} style={{
-              position:'absolute', top:`${p.top}%`, left:'-10px',
-              width:`${p.size}px`, height:`${p.size * 0.4}px`,
-              background:`rgba(180,130,50,${p.opacity})`,
-              borderRadius:'50%',
-              animation:`sand-blow ${p.duration}s linear ${p.delay}s infinite`,
-            }}/>
-          ))}
-          {/* Visibility haze layers */}
-          <div style={{ position:'absolute', inset:0, background:'repeating-linear-gradient(5deg,transparent,transparent 18px,rgba(160,110,20,.06) 18px,rgba(160,110,20,.06) 19px)' }}/>
-        </>
-      )}
+      {/* ── SANDSTORM ────────────────────────────────────────────────────── */}
+      {weather === 'SANDSTORM' && (<>
+        <div style={{position:'absolute',inset:0,background:'rgba(90,55,8,.60)',animation:'sand-haze 3.5s ease-in-out infinite'}}/>
+        {/* Moving wall of sand */}
+        <div style={{position:'absolute',inset:0,
+          background:'linear-gradient(92deg,rgba(160,110,20,.45),rgba(130,85,12,.20),rgba(170,120,28,.50))',
+          animation:'fog-drift 5s ease-in-out infinite'}}/>
+        <div style={{position:'absolute',inset:0,
+          background:'linear-gradient(88deg,rgba(140,95,15,.35),rgba(180,130,35,.20),rgba(145,100,18,.40))',
+          animation:'fog-drift2 7s ease-in-out infinite'}}/>
+        {/* Sand particles */}
+        {SAND_P.map(p=>(
+          <div key={p.id} style={{
+            position:'absolute', top:`${p.top}%`, left:'-10px',
+            width:`${p.size * 3}px`, height:`${p.size * 0.5}px`,
+            background:`rgba(190,140,55,${p.opacity})`,
+            borderRadius:'50%',
+            animation:`sand-blow ${p.duration}s linear ${p.delay}s infinite`,
+          }}/>
+        ))}
+        {/* Visibility stripes */}
+        <div style={{position:'absolute',inset:0,
+          background:'repeating-linear-gradient(4deg,transparent,transparent 16px,rgba(165,115,22,.05) 16px,rgba(165,115,22,.05) 17px)'}}/>
+        {/* Sun blotted out — dim warm haze */}
+        <div style={{position:'absolute',inset:0,
+          background:'radial-gradient(ellipse 80% 40% at 70% 20%,rgba(220,160,40,.08),transparent)'}}/>
+      </>)}
 
       {/* ── TYPHOON ───────────────────────────────────────────────────────── */}
-      {weather === 'TYPHOON' && (
-        <>
-          <div style={{ position:'absolute', inset:0, background:'rgba(10,5,30,.58)' }}/>
-          {TYPHOON_DROPS.map(d => (
-            <div key={d.id} style={{
-              position:'absolute', left:`${d.left}%`, top:0,
-              width:'2px', height:`${d.length}px`,
-              background:`rgba(150,180,255,${d.opacity})`,
-              transform:`rotate(${d.angle}deg)`,
-              animation:`rain-fall ${d.duration * 0.6}s linear ${d.delay}s infinite`,
+      {weather === 'TYPHOON' && (<>
+        <div style={{position:'absolute',inset:0,background:'rgba(8,4,28,.62)'}}/>
+        {TYPHOON_D.map(d=>(
+          <div key={d.id} style={{
+            position:'absolute', left:`${d.left}%`, top:0,
+            width:'2px', height:`${d.length}px`,
+            background:`rgba(140,175,255,${d.opacity})`,
+            transform:`rotate(${d.angle}deg)`,
+            animation:`rain-fall ${d.duration*.55}s linear ${d.delay}s infinite`,
+          }}/>
+        ))}
+        {/* Rotating spiral eye wall */}
+        <div style={{position:'absolute',top:'15%',left:'35%',width:200,height:200,opacity:.12}}>
+          {[0,1,2,3,4].map(i=>(
+            <div key={i} style={{
+              position:'absolute',
+              inset: `${i*16}px`,
+              border:`${3-i*0.4}px solid rgba(160,120,255,.9)`,
+              borderRadius:'50%',
+              animation:`typhoon-spin ${2.5+i*0.6}s linear ${i%2===0?'':'reverse'} infinite`,
             }}/>
           ))}
-          {/* Typhoon spiral indicator */}
-          <div style={{ position:'absolute', top:'30%', left:'40%', width:120, height:120, opacity:.15 }}>
-            {[0,1,2,3].map(i=>(
-              <div key={i} style={{
-                position:'absolute', inset:0,
-                border:'3px solid rgba(140,100,255,.8)',
-                borderRadius:'50%',
-                transform:`scale(${0.3+i*0.25})`,
-                animation:`typhoon-spin ${3+i}s linear infinite`,
-              }}/>
-            ))}
-          </div>
-          <div style={{ position:'absolute', inset:0, background:'rgba(180,160,255,.3)', animation:'lightning 3s linear infinite' }}/>
-        </>
-      )}
+          {/* Eye */}
+          <div style={{position:'absolute',inset:'72px',borderRadius:'50%',
+            background:'rgba(20,10,50,.5)',border:'1px solid rgba(140,100,255,.4)'}}/>
+        </div>
+        {/* Purple lightning */}
+        <div style={{position:'absolute',inset:0,background:'rgba(180,150,255,.35)',animation:'lightning 3s linear infinite'}}/>
+        <div style={{position:'absolute',inset:0,background:'rgba(160,130,255,.25)',animation:'lightning2 4.5s linear .8s infinite'}}/>
+        {/* Surge bands */}
+        <div style={{position:'absolute',inset:0,
+          background:'linear-gradient(135deg,rgba(120,80,255,.12) 0%,transparent 50%,rgba(100,60,220,.15) 100%)',
+          animation:'fog-drift 6s ease-in-out infinite'}}/>
+      </>)}
 
       {/* ── TROPICAL SQUALL ───────────────────────────────────────────────── */}
-      {weather === 'SQUALL' && (
-        <>
-          <div style={{ position:'absolute', inset:0, background:'rgba(5,15,28,.4)' }}/>
-          {SQUALL_DROPS.map(d => (
-            <div key={d.id} style={{
-              position:'absolute', left:`${d.left}%`, top:0,
-              width:'2px', height:`${d.length}px`,
-              background:`rgba(100,200,220,${d.opacity})`,
-              transform:`rotate(${d.angle}deg)`,
-              animation:`rain-fall ${d.duration}s linear ${d.delay}s infinite`,
-            }}/>
-          ))}
-          <div style={{ position:'absolute', inset:0, background:'rgba(100,200,220,.2)', animation:'squall-flash 4s linear infinite' }}/>
-        </>
-      )}
+      {weather === 'SQUALL' && (<>
+        <div style={{position:'absolute',inset:0,background:'rgba(4,14,26,.42)'}}/>
+        {SQUALL_D.map(d=>(
+          <div key={d.id} style={{
+            position:'absolute', left:`${d.left}%`, top:0,
+            width:'2px', height:`${d.length}px`,
+            background:`rgba(90,200,220,${d.opacity})`,
+            transform:`rotate(${d.angle}deg)`,
+            animation:`rain-fall ${d.duration}s linear ${d.delay}s infinite`,
+          }}/>
+        ))}
+        <div style={{position:'absolute',inset:0,background:'rgba(80,195,215,.22)',animation:'lightning 4.5s linear infinite'}}/>
+        <div style={{position:'absolute',inset:0,background:'rgba(60,180,200,.15)',animation:'lightning2 6s linear 1.5s infinite'}}/>
+        {/* Humidity haze */}
+        <div style={{position:'absolute',inset:0,
+          background:'linear-gradient(180deg,rgba(0,30,40,.35) 0%,rgba(0,20,30,.15) 50%,transparent 100%)'}}/>
+      </>)}
 
       {/* ── STATUS BADGE ──────────────────────────────────────────────────── */}
       <div style={{
         position:'absolute', top:65, right:300,
-        background:`rgba(5,8,12,.88)`,
+        background:'rgba(4,8,12,.90)',
         border:`1px solid ${info.color}60`,
         borderRadius:3, padding:'5px 13px',
         fontFamily:'Share Tech Mono,monospace', fontSize:11,
@@ -193,7 +287,7 @@ export default function WeatherOverlay() {
         display:'flex', alignItems:'center', gap:8,
         boxShadow:`0 0 16px ${info.color}20`,
       }}>
-        <span style={{ fontSize:15 }}>{info.emoji}</span>
+        <span style={{fontSize:15}}>{info.emoji}</span>
         {info.label}
       </div>
     </div>

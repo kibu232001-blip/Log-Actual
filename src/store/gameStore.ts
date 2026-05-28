@@ -724,14 +724,23 @@ export const useGameStore = create<Store>((set,get)=>({
     const pending=true?(getDecisionsForScenario(s.activeScenarioId||'CAMPAIGN_1', nextDay)??null):null
     const sw2=calcSW(updatedUnits),rct=calcRCT(updatedUnits),sigma=calcSigma(sw2,rct),avg=calcAvg(updatedUnits)
 
-    // ── MISSING VARS THAT WERE CRASHING ADVANCE ──────────────────────────────
-    // Weather: cycles based on day + scenario activity
+    // ── WEATHER — scenario-aware, geographically realistic ───────────────────
     const weatherRoll = Math.random()
-    const activityLevel = getScenarioMeta(s.activeScenarioId||'CAMPAIGN_1').enemyActivityLevel
-    const currentWeather = weatherRoll < 0.06 ? 'STORM'
-                         : weatherRoll < 0.15 ? 'FOG'
-                         : weatherRoll < 0.28 ? 'RAIN'
-                         : 'CLEAR'
+    const scenId = s.activeScenarioId || 'CAMPAIGN_1'
+
+    // Weather tables by campaign theater — only possible conditions per region
+    const WEATHER_TABLES: Record<string, Array<[number, string]>> = {
+      CAMPAIGN_1: [[0.05,'STORM'],[0.12,'RAIN'],[0.18,'FOG'],[0.24,'SNOW'],[1,'CLEAR']],       // Europe — snow possible
+      CAMPAIGN_2: [[0.06,'STORM'],[0.14,'RAIN'],[0.20,'FOG'],[0.28,'SNOW'],[1,'CLEAR']],       // Baltic — heavy snow
+      CAMPAIGN_3: [[0.04,'STORM'],[0.10,'SANDSTORM'],[0.18,'FOG'],[0.24,'RAIN'],[1,'CLEAR']], // Desert — sandstorms
+      CAMPAIGN_4: [[0.04,'STORM'],[0.10,'SANDSTORM'],[0.16,'FOG'],[0.22,'RAIN'],[1,'CLEAR']], // Gulf — sandstorms
+      CAMPAIGN_5: [[0.06,'TYPHOON'],[0.14,'SQUALL'],[0.22,'RAIN'],[0.28,'FOG'],[1,'CLEAR']], // Pacific — typhoons
+      CAMPAIGN_6: [[0.06,'TYPHOON'],[0.14,'SQUALL'],[0.22,'RAIN'],[0.28,'FOG'],[1,'CLEAR']], // Island — typhoons
+    }
+    const table = WEATHER_TABLES[scenId] || WEATHER_TABLES.CAMPAIGN_1
+    const currentWeather = (table.find(([threshold]) => weatherRoll < threshold)?.[1]) || 'CLEAR'
+
+    const activityLevel = getScenarioMeta(scenId).enemyActivityLevel
 
     // Days since last player action (convoy dispatch etc)
     const daysSinceAction = (s.daysSinceLastAction ?? 0) + 1
@@ -742,14 +751,22 @@ export const useGameStore = create<Store>((set,get)=>({
 
     // Add weather event if notable
     if (currentWeather !== 'CLEAR') {
+      const wxMsg: Record<string,{report:string;priority:string}> = {
+        STORM:     { report:'Storm conditions. Air ops grounded. All air corridors CLOSED.', priority:'PRIORITY' },
+        RAIN:      { report:'Rain affecting routes. Ground conditions AMBER. Air corridors open.', priority:'ROUTINE' },
+        FOG:       { report:'Dense fog reducing visibility. Convoy speeds -40%. Air ops at IFR minimums.', priority:'ROUTINE' },
+        SNOW:      { report:'Snow conditions critical. Ground mobility severely degraded. All convoys +2 day delay. MSRs may be impassable.', priority:'PRIORITY' },
+        SANDSTORM: { report:'Sandstorm engulfing theater. All ops degraded. Visibility near zero. Air and ground movement hazardous.', priority:'PRIORITY' },
+        TYPHOON:   { report:'TYPHOON. ALL air and sea ops SUSPENDED. Ground movement restricted to essential only.', priority:'FLASH' },
+        SQUALL:    { report:'Tropical squall. Air corridors CLOSED. Sea routes degraded. Ground ops proceed with caution.', priority:'PRIORITY' },
+      }
+      const wx = wxMsg[currentWeather] || { report:'Weather affecting operations.', priority:'ROUTINE' }
       dayEvents.push({
         id:`WX_${nextDay}_${Date.now()}`, type:'WEATHER',
         title:`WEATHER UPDATE — D${nextDay} ${currentWeather}`,
-        report: currentWeather==='STORM' ? 'Storm conditions grounding air operations. Ground convoys restricted. All air corridors CLOSED.'
-               : currentWeather==='FOG'  ? 'Dense fog reducing visibility. Convoy speeds reduced 40%. Air operations at IFR minimums.'
-               : 'Rain affecting routes. Ground conditions AMBER. Air corridors open.',
-        priority: currentWeather==='STORM' ? 'PRIORITY' : 'ROUTINE',
-        severity: currentWeather==='STORM' ? 'MAJOR' : 'MINOR',
+        report: wx.report,
+        priority: wx.priority,
+        severity: ['TYPHOON','STORM','SNOW','SANDSTORM'].includes(currentWeather) ? 'MAJOR' : 'MINOR',
         effects:[], affectedAssets:[], acknowledged:false, mitigated:false,
         location:'THEATER', mitigationWindow:60,
       })
@@ -1072,7 +1089,7 @@ export const useGameStore = create<Store>((set,get)=>({
 
     // 4. Weather multiplier — STORM adds 50% transit time
     const weather = (s as any).weather || 'CLEAR'
-    const weatherMult = weather === 'STORM' ? 1.5 : weather === 'FOG' ? 1.2 : weather === 'RAIN' ? 1.1 : 1.0
+    const weatherMult = weather === 'TYPHOON' ? 2.0 : weather === 'STORM' ? 1.5 : weather === 'SNOW' ? 1.8 : weather === 'SANDSTORM' ? 1.6 : weather === 'SQUALL' ? 1.4 : weather === 'FOG' ? 1.2 : weather === 'RAIN' ? 1.1 : 1.0
     const travelDays = Math.max(1, Math.round(baseDays * weatherMult))
 
     // 5. Build modifier description for feed
