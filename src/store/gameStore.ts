@@ -1329,8 +1329,9 @@ export const useGameStore = create<Store>((set,get)=>({
   resetGame:(scenarioId?:string)=>{
     const sid=scenarioId||'CAMPAIGN_1'
     get().stopAutoAdvance()
+    const fresh = buildInitialState(sid)
     set({
-      ...buildInitialState(sid),
+      ...fresh,
       ...INITIAL_UI,
       autoAdvanceEnabled:false,
       secondsToNextDay:120,
@@ -1338,10 +1339,12 @@ export const useGameStore = create<Store>((set,get)=>({
       enemyIntel:createInitialIntel(),
       lastEnemyAttacks:[],
       activeScenarioId:sid,
-      appliedBattlefieldEvents:[],
+      // Use the fresh Day 1 feed from buildInitialState — don't override with []
+      appliedBattlefieldEvents:(fresh as any).appliedBattlefieldEvents || [],
       standingOrders:{},
       convoyStats:{ dispatched:0, delivered:0, interdicted:0 },
       airSorties:4,
+      locInterdictions:{},
     } as any)
   },
 }))

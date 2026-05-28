@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useGameStore } from '../../store/gameStore'
 import AudioEngine from '../../engine/AudioEngine'
 
@@ -54,9 +54,10 @@ export default function TopBar() {
   const startTacticalFeed = (useGameStore.getState() as any).startTacticalFeed
 
   useEffect(() => {
+    AudioEngine.loadBGMPref()
     startAutoAdvance()
+    AudioEngine.startBGM()
     if (startTacticalFeed) startTacticalFeed()
-    // Start ambient on first user interaction
     const startAudio = () => { AudioEngine.startAmbient(); document.removeEventListener('click', startAudio); document.removeEventListener('touchstart', startAudio) }
     document.addEventListener('click', startAudio)
     document.addEventListener('touchstart', startAudio)
@@ -77,6 +78,7 @@ export default function TopBar() {
   const airSorties = useGameStore(s => (s as any).airSorties ?? 4)
   const nextResupplyDay = useGameStore(s => (s as any).nextTheaterResupplyDay ?? 5)
   const daysToResupply = Math.max(0, nextResupplyDay - currentDay)
+  const [bgmOn, setBgmOn] = useState(true)
 
   const sigmaColor = metrics.sigmaLevel >= 3 ? '#00ff88' : metrics.sigmaLevel >= 2 ? '#ffaa00' : '#ff4444'
 
@@ -164,6 +166,11 @@ export default function TopBar() {
             fontFamily:'Share Tech Mono,monospace', fontSize:11, letterSpacing:1,
             WebkitTapHighlightColor:'transparent', flexShrink:0,
           }}>SKIP</button>
+          <button onClick={() => { AudioEngine.toggleBGM(); setBgmOn(p=>!p) }} style={{
+            background:'transparent', border:'none',
+            color: bgmOn ? '#2a8a5a' : '#1a3a20', padding:'4px 6px', cursor:'pointer',
+            fontSize:14, flexShrink:0, WebkitTapHighlightColor:'transparent',
+          }} title={bgmOn ? 'BGM ON' : 'BGM OFF'}>{bgmOn ? '🔊' : '🔇'}</button>
         </div>
 
         {/* Row 2: Compact metrics strip - slim on mobile */}

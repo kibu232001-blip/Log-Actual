@@ -27,6 +27,7 @@ export default function CampaignAAR() {
 
   useEffect(() => {
     setTimeout(() => setVisible(true), 100)
+    AudioEngine.stopBGM()
     AudioEngine.resume()
     if (!isFailed) {
       AudioEngine.playDecisionCorrect()

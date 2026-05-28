@@ -13,6 +13,9 @@ class AudioEngineClass {
   private masterGain: GainNode | null = null
   private ambientNodes: OscillatorNode[] = []
   private running = false
+  private bgmAudio: HTMLAudioElement | null = null
+  private bgmVolume = 0.25
+  private bgmEnabled = true
   private currentSigma = 3.0
 
   private getCtx(): AudioContext {
@@ -89,6 +92,73 @@ class AudioEngineClass {
     this.running = false
   }
 
+  // ── GAME BGM ─────────────────────────────────────────────────────────────────
+  startBGM() {
+    if (!this.bgmEnabled) return
+    try {
+      if (this.bgmAudio) { this.bgmAudio.pause(); this.bgmAudio = null }
+      const audio = new Audio('/audio/game-bgm.mp3')
+      audio.loop = true
+      audio.volume = 0
+      this.bgmAudio = audio
+      audio.play().catch(() => {})
+      // Fade in over 2s
+      let v = 0
+      const fade = setInterval(() => {
+        v = Math.min(this.bgmVolume, v + 0.01)
+        if (audio === this.bgmAudio) audio.volume = v
+        if (v >= this.bgmVolume) clearInterval(fade)
+      }, 80)
+    } catch(e) {}
+  }
+
+  stopBGM() {
+    if (!this.bgmAudio) return
+    const audio = this.bgmAudio
+    let v = audio.volume
+    const fade = setInterval(() => {
+      v = Math.max(0, v - 0.03)
+      audio.volume = v
+      if (v <= 0) { clearInterval(fade); audio.pause(); if (this.bgmAudio === audio) this.bgmAudio = null }
+    }, 50)
+  }
+
+  // Duck BGM during alerts — restore after durationMs
+  duckBGM(durationMs = 3000) {
+    if (!this.bgmAudio) return
+    const audio = this.bgmAudio
+    const normal = this.bgmVolume
+    const ducked = normal * 0.2  // duck to 20% of normal during alert
+    audio.volume = ducked
+    setTimeout(() => {
+      if (audio === this.bgmAudio) {
+        let v = audio.volume
+        const restore = setInterval(() => {
+          v = Math.min(normal, v + 0.01)
+          if (audio === this.bgmAudio) audio.volume = v
+          if (v >= normal) clearInterval(restore)
+        }, 60)
+      }
+    }, durationMs)
+  }
+
+  toggleBGM(): boolean {
+    this.bgmEnabled = !this.bgmEnabled
+    if (this.bgmEnabled) this.startBGM()
+    else this.stopBGM()
+    try { localStorage.setItem('logactual_bgm', this.bgmEnabled ? '1' : '0') } catch(e) {}
+    return this.bgmEnabled
+  }
+
+  isBGMEnabled(): boolean { return this.bgmEnabled }
+
+  loadBGMPref() {
+    try {
+      const saved = localStorage.getItem('logactual_bgm')
+      if (saved === '0') this.bgmEnabled = false
+    } catch(e) {}
+  }
+
   // Update ambient intensity based on sigma — lower sigma = more stress
   setSigma(sigma: number) {
     if (!this.running || !this.stressGain || !this.ambientGain) return
@@ -107,6 +177,7 @@ class AudioEngineClass {
   // ── ALERT TONES ─────────────────────────────────────────────────────────────
   playAlert(level: AlertLevel) {
     try {
+      if (level === 'FLASH' || level === 'PRIORITY') this.duckBGM(3500)
       const ctx = this.getCtx()
       if (ctx.state === 'suspended') ctx.resume()
       const t = ctx.currentTime
