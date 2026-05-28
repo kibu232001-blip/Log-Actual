@@ -11,13 +11,67 @@ interface Projectile {
   hit: boolean
 }
 
-function getProjectileStyle(type: Projectile['type']) {
+// ── ATTACK SPRITE SHEET MAPPING ─────────────────────────────────────────────
+const ATK_SPRITE = '/sprites/attack-sprites.png'
+const ASW = 512; const ASH = 512  // cell size
+
+const ATK_SPRITES = {
+  // Row 1 — projectiles
+  rocket:        { x:0,       y:0,    w:ASW, h:ASH },
+  cruise_missile:{ x:ASW,     y:0,    w:ASW, h:ASH },
+  artillery:     { x:ASW*2,   y:0,    w:ASW, h:ASH },
+  drone:         { x:ASW*3,   y:0,    w:ASW, h:ASH },
+  // Row 2 — impacts
+  impact_rocket: { x:0,       y:ASH,  w:ASW, h:ASH },
+  impact_missile:{ x:ASW,     y:ASH,  w:ASW, h:ASH },
+  impact_arty:   { x:ASW*2,   y:ASH,  w:ASW, h:ASH },
+  impact_drone:  { x:ASW*3,   y:ASH,  w:ASW, h:ASH },
+  // Row 3 — fire/sustained
+  fire_small:    { x:0,       y:ASH*2,w:ASW, h:ASH },
+  fire_large:    { x:ASW,     y:ASH*2,w:ASW, h:ASH },
+  ied_blast:     { x:ASW*2,   y:ASH*2,w:ASW, h:ASH },
+  smoke:         { x:ASW*3,   y:ASH*2,w:ASW, h:ASH },
+  // Row 4 — markers
+  crater:        { x:0,       y:ASH*3,w:ASW, h:ASH },
+  bridge_demo:   { x:ASW,     y:ASH*3,w:ASW, h:ASH },
+  interdiction:  { x:ASW*2,   y:ASH*3,w:ASW, h:ASH },
+  route_clear:   { x:ASW*3,   y:ASH*3,w:ASW, h:ASH },
+}
+
+function getProjectileSprite(type: Projectile['type']): keyof typeof ATK_SPRITES {
   switch(type) {
-    case 'ROCKET':        return { color:'#ff6600', size:8,  speed:0.018, trail:'#ff440060' }
-    case 'DRONE':         return { color:'#8888ff', size:10, speed:0.006, trail:'#4444aa40' }
-    case 'CRUISE_MISSILE':return { color:'#ff2200', size:7,  speed:0.012, trail:'#ff000050' }
-    case 'ARTILLERY':     return { color:'#ffaa00', size:6,  speed:0.025, trail:'#ff880050' }
+    case 'ROCKET':         return 'rocket'
+    case 'CRUISE_MISSILE': return 'cruise_missile'
+    case 'ARTILLERY':      return 'artillery'
+    case 'DRONE':          return 'drone'
   }
+}
+
+function getImpactSprite(type: Projectile['type']): keyof typeof ATK_SPRITES {
+  switch(type) {
+    case 'ROCKET':         return 'impact_rocket'
+    case 'CRUISE_MISSILE': return 'impact_missile'
+    case 'ARTILLERY':      return 'impact_arty'
+    case 'DRONE':          return 'impact_drone'
+  }
+}
+
+function AttackSprite({ name, size, angle=0, style={} }: {
+  name: keyof typeof ATK_SPRITES; size: number; angle?: number; style?: React.CSSProperties
+}) {
+  const sp = ATK_SPRITES[name]
+  const scale = size / sp.w
+  return (
+    <div style={{
+      width: size, height: size * (sp.h/sp.w),
+      backgroundImage: `url(${ATK_SPRITE})`,
+      backgroundPosition: `-${sp.x * scale}px -${sp.y * scale}px`,
+      backgroundSize: `${4 * sp.w * scale}px ${4 * sp.h * scale}px`,
+      transform: `rotate(${angle}deg)`,
+      imageRendering: 'pixelated',
+      ...style,
+    }}/>
+  )
 }
 
 // Straight line — rockets fly direct, no arc
@@ -162,165 +216,38 @@ export default function AttackAnimations({ mapRef }: Props) {
     <div style={{ position:'absolute', inset:0, zIndex:60, pointerEvents:'none', overflow:'hidden' }}>
       <style>{ATK_CSS}</style>
 
-      {/* Projectiles */}
+      {/* Projectiles — sprite sheet */}
       {projs.filter(p => p.active && !p.hit).map(p => {
-        const style = getProjectileStyle(p.type)
         const pos = p.type === ('DRONE' as any)
           ? dronePoint(p.fromX, p.fromY, p.toX, p.toY, p.progress)
           : straightPoint(p.fromX, p.fromY, p.toX, p.toY, p.progress)
-
         const angle = Math.atan2(p.toY - p.fromY, p.toX - p.fromX) * 180 / Math.PI
+        const spriteName = getProjectileSprite(p.type)
+        const pSize = p.type==='CRUISE_MISSILE' ? 64 : p.type==='DRONE' ? 48 : 52
 
         return (
-          <div key={p.id} style={{ position:'absolute', left:pos.x, top:pos.y, transform:'translate(-50%,-50%)', pointerEvents:'none' }}>
-            {/* Exhaust smoke trail */}
-            {p.type !== 'DRONE' && (
-              <div style={{
-                position:'absolute',
-                width: p.type==='CRUISE_MISSILE'?60:p.type==='ROCKET'?45:30,
-                height: p.type==='CRUISE_MISSILE'?6:4,
-                background:`linear-gradient(${angle>90||angle<-90?'to right':'to left'},${style.trail},rgba(100,80,50,.3),transparent)`,
-                left: p.type==='DRONE'?undefined:'calc(100% + 2px)',
-                right: p.type==='DRONE'?'100%':undefined,
-                top:'50%', transform:'translateY(-50%)',
-                borderRadius:4,
-                filter:'blur(3px)',
-              }}/>
-            )}
-            {/* Military missile silhouettes — detailed SVG profiles */}
-            {p.type === ('DRONE' as any) && (
-              <svg width="36" height="20" viewBox="0 0 36 20"
-                style={{ transform:`rotate(${angle}deg)`, animation:'drone-blink .6s infinite', overflow:'visible' }}>
-                {/* Fuselage */}
-                <rect x="8" y="8" width="16" height="4" rx="1" fill={style.color}/>
-                {/* Nose pod */}
-                <ellipse cx="25" cy="10" rx="3" ry="2" fill={style.color}/>
-                <circle cx="26.5" cy="10" r="1" fill="#222" opacity=".8"/>
-                {/* Tail */}
-                <rect x="6" y="9" width="3" height="2" rx="0.5" fill={style.color} opacity=".8"/>
-                {/* Main wings — straight wide */}
-                <path d="M12,8 L10,2 L22,8" fill={style.color} opacity=".85"/>
-                <path d="M12,12 L10,18 L22,12" fill={style.color} opacity=".85"/>
-                {/* Wing tips */}
-                <rect x="9.5" y="1" width="1.5" height="3" rx=".5" fill={style.color} opacity=".7"/>
-                <rect x="9.5" y="16" width="1.5" height="3" rx=".5" fill={style.color} opacity=".7"/>
-                {/* T-tail */}
-                <rect x="7" y="6" width="1.5" height="8" rx=".5" fill={style.color} opacity=".7"/>
-                <rect x="5" y="5.5" width="4" height="1.5" rx=".5" fill={style.color} opacity=".7"/>
-                {/* Payload/sensor */}
-                <ellipse cx="18" cy="10" rx="2" ry="1.5" fill="#444" opacity=".6"/>
-              </svg>
-            )}
-            {p.type === 'ROCKET' && (
-              <svg width="44" height="14" viewBox="0 0 44 14"
-                style={{ transform:`rotate(${angle}deg)`, overflow:'visible' }}>
-                {/* Exhaust flame — multi-layer for realism */}
-                <ellipse cx="5" cy="7" rx="8" ry="4" fill="#ff4400" opacity=".6"/>
-                <ellipse cx="4" cy="7" rx="5" ry="2.5" fill="#ff7700" opacity=".8"/>
-                <ellipse cx="3" cy="7" rx="3" ry="1.5" fill="#ffcc00" opacity=".95"/>
-                {/* Cruciform tail fins */}
-                <path d="M10,7 L8,3  L12,6 Z" fill={style.color}/>
-                <path d="M10,7 L8,11 L12,8 Z" fill={style.color}/>
-                <rect x="8" y="6.2" width="4" height="1.6" fill={style.color} opacity=".5"/>
-                {/* Main body — tapered */}
-                <path d="M10,4.5 L32,3.5 L32,10.5 L10,9.5 Z" fill={style.color}/>
-                {/* Guidance ring / seeker band */}
-                <rect x="28" y="3.5" width="2" height="7" fill="#888" opacity=".7"/>
-                {/* Forward body taper */}
-                <path d="M32,3.5 L37,5 L37,9 L32,10.5 Z" fill={style.color}/>
-                {/* Nose cone — sharp */}
-                <path d="M37,5 L44,7 L37,9 Z" fill={style.color}/>
-                {/* Wing strakes */}
-                <path d="M18,4.5 L16,1 L22,4 Z" fill={style.color} opacity=".75"/>
-                <path d="M18,9.5 L16,13 L22,10 Z" fill={style.color} opacity=".75"/>
-              </svg>
-            )}
-            {p.type === 'CRUISE_MISSILE' && (
-              <svg width="52" height="18" viewBox="0 0 52 18"
-                style={{ transform:`rotate(${angle}deg)`, overflow:'visible' }}>
-                {/* Jet exhaust — small, rear-mounted */}
-                <ellipse cx="5" cy="9" rx="6" ry="3" fill="#ff5500" opacity=".5"/>
-                <ellipse cx="4" cy="9" rx="4" ry="2" fill="#ff9900" opacity=".7"/>
-                <ellipse cx="3" cy="9" rx="2.5" ry="1.2" fill="#ffee00" opacity=".9"/>
-                {/* Cruciform tail fins */}
-                <path d="M10,9 L8,4  L13,7.5 Z" fill={style.color}/>
-                <path d="M10,9 L8,14 L13,10.5 Z" fill={style.color}/>
-                <rect x="8.5" y="8.2" width="4.5" height="1.6" fill={style.color} opacity=".6"/>
-                {/* Air intake */}
-                <ellipse cx="14" cy="12" rx="2" ry="1.5" fill="#222" opacity=".8"/>
-                <rect x="13" y="11" width="3" height="4" rx=".5" fill={style.color} opacity=".7"/>
-                {/* Main body */}
-                <path d="M10,6 L40,5 L40,13 L10,12 Z" fill={style.color}/>
-                {/* Center stripe detail */}
-                <rect x="18" y="5" width="18" height="8" fill={style.color} opacity=".2"/>
-                {/* Large swept delta wings */}
-                <path d="M20,5 L14,0 L34,5" fill={style.color} opacity=".82"/>
-                <path d="M20,13 L14,18 L34,13" fill={style.color} opacity=".82"/>
-                {/* Wing tip fins */}
-                <rect x="13" y="0" width="1.5" height="4" rx=".5" fill={style.color}/>
-                <rect x="13" y="14" width="1.5" height="4" rx=".5" fill={style.color}/>
-                {/* Guidance seeker */}
-                <ellipse cx="42" cy="9" rx="3" ry="3.5" fill={style.color}/>
-                <circle cx="43" cy="9" r="1.5" fill="#888" opacity=".8"/>
-                {/* Nose cone */}
-                <path d="M44,6.5 L52,9 L44,11.5 Z" fill={style.color}/>
-              </svg>
-            )}
-            {p.type === 'ARTILLERY' && (
-              <svg width="32" height="12" viewBox="0 0 32 12"
-                style={{ transform:`rotate(${angle}deg)`, overflow:'visible' }}>
-                {/* Propellant flash */}
-                <ellipse cx="3" cy="6" rx="6" ry="3.5" fill="#ff6600" opacity=".7"/>
-                <ellipse cx="2" cy="6" rx="4" ry="2" fill="#ffaa00" opacity=".85"/>
-                <ellipse cx="1" cy="6" rx="2" ry="1" fill="#ffee88" opacity=".95"/>
-                {/* Shell boattail */}
-                <path d="M6,4 L10,3 L10,9 L6,8 Z" fill={style.color}/>
-                {/* Main body — cylindrical */}
-                <rect x="10" y="3" width="14" height="6" fill={style.color}/>
-                {/* Rotating band */}
-                <rect x="15" y="3" width="2.5" height="6" fill="#cc9944" opacity=".9"/>
-                {/* Forward taper */}
-                <path d="M24,3 L28,4 L28,8 L24,9 Z" fill={style.color}/>
-                {/* Ogive nose */}
-                <path d="M28,4 L32,6 L28,8 Z" fill={style.color}/>
-                {/* Stabilizer fins */}
-                <path d="M8,4 L6,1 L10,3.5 Z" fill={style.color} opacity=".8"/>
-                <path d="M8,8 L6,11 L10,8.5 Z" fill={style.color} opacity=".8"/>
-              </svg>
-            )}
+          <div key={p.id} style={{
+            position:'absolute', left:pos.x, top:pos.y,
+            transform:'translate(-50%,-50%)', pointerEvents:'none',
+          }}>
+            <AttackSprite name={spriteName} size={pSize} angle={angle} />
           </div>
         )
       })}
-
-      {/* Hit effects */}
-      {hits.map(h => (
-        <div key={h.id} style={{ position:'absolute', left:h.x, top:h.y, pointerEvents:'none' }}>
-          {/* Explosion ring */}
-          <div style={{
-            position:'absolute', width:60, height:60,
-            border:`3px solid ${h.type==='DRONE'?'#8888ff':'#ff6600'}`,
-            borderRadius:'50%',
-            boxShadow:`0 0 20px ${h.type==='DRONE'?'#8888ff':'#ff440080'}`,
-            animation:'atk-ring 0.8s ease-out forwards',
-          }}/>
-          {/* Fire core */}
-          <div style={{
-            position:'absolute', width:20, height:20,
-            borderRadius:'50%',
-            background:h.type==='DRONE'?'#aaaaff':'#ff6600',
-            boxShadow:`0 0 30px ${h.type==='DRONE'?'#8888ff':'#ff4400'}`,
-            animation:'atk-hit 0.6s ease-out forwards',
-          }}/>
-          {/* Smoke */}
-          <div style={{
-            position:'absolute', width:30, height:30,
-            borderRadius:'50%',
-            background:'rgba(80,50,20,.6)',
-            filter:'blur(6px)',
-            animation:'atk-smoke 1.5s ease-out 0.3s forwards',
-          }}/>
-        </div>
-      ))}
+      {/* Hit effects — sprite sheet */}
+      {hits.map(h => {
+        const spriteName = getImpactSprite(h.type)
+        const impactSize = h.type==='CRUISE_MISSILE' ? 96 : h.type==='ARTILLERY' ? 80 : 72
+        return (
+          <div key={h.id} style={{
+            position:'absolute', left:h.x, top:h.y,
+            transform:'translate(-50%,-50%)', pointerEvents:'none',
+            animation:'atk-hit 0.8s ease-out forwards',
+          }}>
+            <AttackSprite name={spriteName} size={impactSize} />
+          </div>
+        )
+      })}
     </div>
   )
 }
