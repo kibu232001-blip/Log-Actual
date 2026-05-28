@@ -1272,5 +1272,22 @@ export const useGameStore = create<Store>((set,get)=>({
     }
   }),
   pauseGame:()=>set({isPaused:true}),resumeGame:()=>set({isPaused:false}),
-  resetGame:(scenarioId?:string)=>{const sid=scenarioId||'CAMPAIGN_1';get().stopAutoAdvance();set({...buildInitialState(sid),...INITIAL_UI,autoAdvanceEnabled:false,secondsToNextDay:120,_timerInterval:null,enemyIntel:createInitialIntel(),lastEnemyAttacks:[],activeScenarioId:sid,appliedBattlefieldEvents:[]})},
+  resetGame:(scenarioId?:string)=>{
+    const sid=scenarioId||'CAMPAIGN_1'
+    get().stopAutoAdvance()
+    set({
+      ...buildInitialState(sid),
+      ...INITIAL_UI,
+      autoAdvanceEnabled:false,
+      secondsToNextDay:120,
+      _timerInterval:null,
+      enemyIntel:createInitialIntel(),
+      lastEnemyAttacks:[],
+      activeScenarioId:sid,
+      appliedBattlefieldEvents:[],
+      standingOrders:{},
+      convoyStats:{ dispatched:0, delivered:0, interdicted:0 },
+      airSorties:4,
+    } as any)
+  },
 }))

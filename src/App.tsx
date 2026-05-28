@@ -50,11 +50,21 @@ export default function App() {
   }, [feedEvents])
 
   const handleDeploy = () => {
-    setScreen('DEPLOYING') // Show quote screen for 2.5s
+    setScreen('DEPLOYING')
   }
 
   const handleQuoteComplete = () => {
-    try { resetGame(scenario?.id) } catch(e) {}
+    try {
+      const selectedDiff = useGameStore.getState().difficulty as any
+      resetGame(scenario?.id)
+      // Re-apply difficulty after reset (resetGame overwrites it with STANDARD)
+      if (selectedDiff && selectedDiff !== 'STANDARD') {
+        useGameStore.getState().setDifficulty(selectedDiff)
+      }
+      useGameStore.getState().startAutoAdvance()
+    } catch(e) {
+      console.error('Deploy error:', e)
+    }
     setScreen('GAME')
   }
 
