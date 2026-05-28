@@ -6,6 +6,7 @@ import NodeDetailPanel from './NodeDetailPanel'
 import BattlefieldFeed from './BattlefieldFeed'
 import WeatherOverlay from './WeatherOverlay'
 import AttackAnimations from './AttackAnimations'
+import DeckGLOverlay from './DeckGLOverlay'
 import { getTheaterNetwork, TheaterNode, TheaterLOC } from '../../data/scenarioNodes'
 import AudioEngine from '../../engine/AudioEngine'
 import NewsFeedSystem from './NewsFeedSystem'
@@ -439,40 +440,8 @@ export default function TheaterMap({ onBack }: Props) {
 
           
 
-          {LOCS.map((loc:TheaterLOC)=>{
-            const f=pos[loc.from];const t=pos[loc.to];if(!f||!t) return null
-            if(loc.status==='INTERDICTED'){
-              const mx=(f.x+t.x)/2;const my=(f.y+t.y)/2
-              return(
-                <g key={loc.id}>
-                  <line x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke="#ff2200" strokeWidth="22" opacity=".1" filter="url(#fr)"/>
-                  <line x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke="#ff6600" strokeWidth="4" strokeDasharray="11,6" filter="url(#fr)" style={{animation:'fire-flick .8s ease-in-out infinite'}}/>
-                  {zoom>=7&&<><rect x={mx-52} y={my-13} width="104" height="24" rx="2" fill="#cc2200" opacity=".92" filter="url(#fr)"/><text x={mx} y={my+5} fill="white" fontSize="11" fontWeight="700" textAnchor="middle" fontFamily="Share Tech Mono,monospace" letterSpacing="2">INTERDICTED</text></>}
-                </g>
-              )
-            }
-            const isSea=loc.type==='SEA'
-            const isAir=loc.type==='AIR'
-            const col=isSea?'#4488ff':isAir?'#00aaff':'#00ee77'
-            const filt=isAir||isSea?'url(#fb)':'url(#fg)'
-            const flowLen = isSea ? '20,12' : isAir ? '12,8' : '16,10'
-            const flowDur = isSea ? '3s' : isAir ? '2s' : '2.5s'
-            return(
-              <g key={loc.id}>
-                {/* Glow base */}
-                <line x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke={col} strokeWidth={isSea?8:isAir?8:12} opacity=".08" filter={filt}/>
-                {/* Static route line */}
-                <line x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke={col} strokeWidth={isSea?1.5:isAir?1.5:2} strokeDasharray={isSea?'12,8':isAir?'7,6':undefined} opacity={isSea?.35:isAir?.45:.6} filter={filt}/>
-                {/* FLOWING supply animation */}
-                <line x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke={col} strokeWidth={isSea?2.5:isAir?2:3}
-                  strokeDasharray={flowLen} opacity={isSea?.7:isAir?.65:.85}
-                  style={{
-                    animation:`flow-supply ${flowDur} linear infinite`,
-                    filter:`drop-shadow(0 0 3px ${col})`,
-                  }}/>
-              </g>
-            )
-          })}
+          {/* LOC lines rendered by DeckGLOverlay using real road geometry */}
+          {/* Old SVG lines replaced by Deck.gl PathLayer */}
 
           {/* HUD — desktop only, TopBar covers this on mobile */}
           {window.innerWidth >= 768 && (
@@ -616,6 +585,7 @@ export default function TheaterMap({ onBack }: Props) {
         {selNode&&<NodeDetailPanel node={{...selNode,wx:0,wy:0}} onClose={()=>setSelNode(null)}/>}
         <WeatherOverlay/>
         <AttackAnimations mapRef={mapRef}/>
+        {mapInst.current && <DeckGLOverlay mapInstance={mapInst.current} zoom={zoom} />}
       </div>
       {window.innerWidth >= 768 && <BattlefieldFeed/>}
       <NewsFeedSystem />
