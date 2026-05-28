@@ -431,12 +431,24 @@ export const useGameStore = create<Store>((set,get)=>({
       )
 
       // ── PROCESS CONVOY ARRIVALS — real supply delivery ──
-      const arrived:string[]=[]
-      let convoysDelivered = 0
+      const arrived:string[]=[]; let convoysDelivered = 0
       newConvoys=newConvoys.map(c=>{
         if(c.status!=='EN_ROUTE') return c
         const prog=Math.min(1,(nextDay-c.departedDay)/c.travelDays)
         const daysRemaining = c.travelDays - (nextDay - c.departedDay)
+
+        // Air convoy arriving — queue airdrop visual
+        if (prog >= 1 && (c.assetType==='AIR'||c.assetType==='HELO')) {
+          const th2 = getTheaterNetwork((s as any).activeScenarioId||'CAMPAIGN_1')
+          const destN = th2.nodes.find((n:any)=>n.unitId===c.toUnitId||n.id===c.toUnitId)
+          if (destN) {
+            const existing = (s as any).__pendingAirdrops||[]
+            ;(s as any).__pendingAirdrops = [
+              ...existing.filter((a:any)=>a.id!==`ADP_${c.id}`),
+              { id:`ADP_${c.id}`, lat:destN.lat, lng:destN.lng, expiresDay:nextDay+1 }
+            ]
+          }
+        }
 
         // 1-day-out intel warning
         if (daysRemaining === 1) {
@@ -543,7 +555,8 @@ export const useGameStore = create<Store>((set,get)=>({
             if ((updatedLocs as any)[eff.locId]) {
               ;(updatedLocs as any)[eff.locId] = {
                 ...(updatedLocs as any)[eff.locId],
-                status: 'INTERDICTED'
+                status: 'INTERDICTED',
+                attackType: attack.type,  // BRIDGE_DEMO, IED, AMBUSH etc
               }
             }
             // Signal the map — shake + audio — via CustomEvent (TheaterMap listens)

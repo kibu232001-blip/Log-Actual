@@ -44,6 +44,20 @@ const SPRITE_MAPPING: Record<string,{x:number;y:number;width:number;height:numbe
   frago_doc:         {x:CW*3,   y:CH*5, width:CW,height:CH},
 }
 
+
+// ── ATTACK SPRITE SHEET ──────────────────────────────────────────────────────
+const ATK_SPRITE = '/sprites/attack-sprites.png'
+const ASW = 512; const ASH = 512
+
+const ATK_MAPPING: Record<string,{x:number;y:number;width:number;height:number}> = {
+  fire_small:    {x:0,       y:ASH*2, width:ASW, height:ASH},
+  fire_large:    {x:ASW,     y:ASH*2, width:ASW, height:ASH},
+  ied_blast:     {x:ASW*2,   y:ASH*2, width:ASW, height:ASH},
+  airdrop:       {x:ASW*3,   y:ASH,   width:ASW, height:ASH},
+  bridge_demo:   {x:ASW,     y:ASH*3, width:ASW, height:ASH},
+  crater:        {x:0,       y:ASH*3, width:ASW, height:ASH},
+}
+
 const LOC_COLORS: Record<string,[number,number,number,number]> = {
   OPEN:        [0,  255,136,160], ACTIVE:  [0,  255,136,160],
   INTERDICTED: [255, 50,  0,230], CONTESTED:[255,180,  0,200],
@@ -87,6 +101,7 @@ function interpArc(fLng:number,fLat:number,tLng:number,tLat:number,t:number):{po
 
 export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
   const overlayRef    = useRef<MapboxOverlay|null>(null)
+  const trailRef      = useRef<Record<string,[number,number][]>>({})
   const routesRef     = useRef<Record<string,RouteGeometry>>({})
   const animRef       = useRef<ReturnType<typeof requestAnimationFrame>|null>(null)
   const frameRef      = useRef(0)
@@ -104,6 +119,7 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
   const enemyAOs         = useGameStore(s => (s as any).enemyAOs||[]) as any[]
   const currentDay       = useGameStore(s => s.currentDay)
   const secondsToNextDay = useGameStore(s => (s as any).secondsToNextDay??120)
+  const pendingAirdrops  = useGameStore(s => (s as any).__pendingAirdrops||[]) as any[]
 
   const theater = useMemo(()=>getTheaterNetwork(activeScenarioId),[activeScenarioId])
   const nodeMap = useMemo(()=>{
@@ -142,7 +158,7 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
   useEffect(()=>{
     rebuildStaticLayers()
     commitLayers()
-  },[storeLocs, units, enemyAOs, activeScenarioId])
+  },[storeLocs, units, enemyAOs, activeScenarioId, pendingAirdrops])
 
   // rAF loop — only rebuilds convoy positions each frame
   useEffect(()=>{
@@ -257,6 +273,12 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
           const r = interpRoute(geo.coordinates, progress)
           pos=r.pos; angle=r.angle
         }
+        // Update trail - keep last 8 positions per convoy
+        const trail = trailRef.current[c.id] || []
+        if (!trail.length || Math.abs(trail[trail.length-1][0]-pos[0])>0.0001 || Math.abs(trail[trail.length-1][1]-pos[1])>0.0001) {
+          trailRef.current[c.id] = [...trail.slice(-7), pos]
+        }
+
         return {
           id:c.id, position:pos,
           icon:getConvoySprite(c),
@@ -274,8 +296,83 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
       billboard:true, pickable:false,
     })
 
+    // ── CONVOY TRAILS ────────────────────────────────────────────────────────
+    const trailData = Object.entries(trailRef.current)
+      .filter(([id]) => realConvoys.find((c:any)=>c.id===id&&c.status==='EN_ROUTE'))
+      .map(([id, pts]) => ({
+        id, path: pts,
+        color: realConvoys.find((c:any)=>c.id===id)?.assetType==='AIR'
+          ? [0,180,255,120] : [0,255,136,100] as [number,number,number,number]
+      }))
+
+    const trailLayer = new PathLayer({
+      id:'convoy-trails', data:trailData,
+      getPath:(d:any)=>d.path, getColor:(d:any)=>d.color,
+      getWidth:3, widthUnits:'pixels',
+      widthMinPixels:2, widthMaxPixels:6,
+      capRounded:true,
+      opacity:0.6,
+    })
+
+    // ── FIRE OVERLAYS on STONEWALL/CRITICAL nodes ─────────────────────────────
+    const fireIcons = staticNodeRef.current
+      .filter((n:any) => n.icon==='fob_stonewall'||n.icon==='fob_critical')
+      .map((n:any) => ({
+        id:`fire_${n.id}`,
+        position: n.position,
+        icon: n.icon==='fob_stonewall' ? 'fire_large' : 'fire_small',
+        size: n.icon==='fob_stonewall' ? 1800 : 1200,
+        atlas: ATK_SPRITE,
+        mapping: ATK_MAPPING,
+      }))
+
+    const fireLayer = new IconLayer({
+      id:'node-fires', data:fireIcons,
+      iconAtlas:ATK_SPRITE, iconMapping:ATK_MAPPING,
+      getIcon:(d:any)=>d.icon, getPosition:(d:any)=>d.position, getSize:(d:any)=>d.size,
+      sizeUnits:'meters', sizeMinPixels:16, sizeMaxPixels:100,
+      billboard:true, pickable:false,
+    })
+
+    // ── BRIDGE DEMO markers on BRIDGE_DEMO interdicted LOCs ───────────────────
+    const bridgeData = staticPathRef.current
+      .filter((d:any) => {
+        const live = storeLocs?.[d.id]
+        return live?.attackType==='BRIDGE_DEMO' && d.interdicted
+      })
+      .map((d:any) => {
+        // Place marker at midpoint of LOC
+        const pts = d.path as [number,number][]
+        const mid = pts[Math.floor(pts.length/2)] || pts[0]
+        return { id:`bridge_${d.id}`, position:mid, icon:'bridge_demo', size:1400 }
+      })
+
+    const bridgeLayer = new IconLayer({
+      id:'bridge-demos', data:bridgeData,
+      iconAtlas:ATK_SPRITE, iconMapping:ATK_MAPPING,
+      getIcon:(d:any)=>d.icon, getPosition:(d:any)=>d.position, getSize:(d:any)=>d.size,
+      sizeUnits:'meters', sizeMinPixels:14, sizeMaxPixels:80,
+      billboard:true, pickable:false,
+    })
+
+    // ── AIRDROP SPRITES at air delivery destinations ──────────────────────────
+    const airdropIcons = pendingAirdrops
+      .filter((a:any) => a.expiresDay >= currentDay)
+      .map((a:any) => ({
+        id:a.id, position:[a.lng, a.lat] as [number,number],
+        icon:'airdrop', size:1600,
+      }))
+
+    const airdropLayer = new IconLayer({
+      id:'airdrops', data:airdropIcons,
+      iconAtlas:SPRITE_URL, iconMapping:SPRITE_MAPPING,
+      getIcon:(d:any)=>d.icon, getPosition:(d:any)=>d.position, getSize:(d:any)=>d.size,
+      sizeUnits:'meters', sizeMinPixels:16, sizeMaxPixels:90,
+      billboard:true, pickable:false,
+    })
+
     overlayRef.current.setProps({
-      layers:[pathLayer, nodeLayer, aoLayer, convoyLayer]
+      layers:[pathLayer, trailLayer, nodeLayer, fireLayer, bridgeLayer, aoLayer, airdropLayer, convoyLayer]
     })
   }
 
