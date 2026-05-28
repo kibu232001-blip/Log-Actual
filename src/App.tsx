@@ -20,6 +20,26 @@ import { applySigmaTheme } from './styles/sigmaTheme'
 
 type Screen = 'CINEMATIC' | 'SPLASH' | 'MISSION_SELECT' | 'MISSION_BRIEF' | 'DEPLOYING' | 'GAME'
 
+
+// ── ERROR BOUNDARY ─────────────────────────────────────────────────────────────
+class GameErrorBoundary extends React.Component<{children:React.ReactNode},{error:string|null}> {
+  constructor(props:any) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(e:any) { return { error: String(e?.message || e) } }
+  componentDidCatch(e:any) { console.error('Game screen crash:', e) }
+  render() {
+    if (this.state.error) return (
+      <div style={{position:'fixed',inset:0,background:'#030a04',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24}}>
+        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:'#ff4444',letterSpacing:2,marginBottom:16}}>SYSTEM FAULT — THEATER INITIALIZATION FAILED</div>
+        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:'#ff222280',maxWidth:320,textAlign:'center',lineHeight:1.6,marginBottom:24}}>{this.state.error}</div>
+        <button onClick={()=>window.location.reload()} style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:'#00ff88',background:'transparent',border:'1px solid #00ff88',padding:'8px 20px',cursor:'pointer',letterSpacing:2}}>
+          RELOAD
+        </button>
+      </div>
+    )
+    return this.props.children
+  }
+}
+
 export default function App() {
   const [screen, setScreen]       = useState<Screen>('CINEMATIC')
   const [scenario, setScenario]   = useState<MissionScenario | null>(null)
@@ -55,16 +75,13 @@ export default function App() {
 
   const handleQuoteComplete = () => {
     try {
-      const selectedDiff = useGameStore.getState().difficulty as any
+      const selectedDiff = (useGameStore.getState() as any).difficulty
       resetGame(scenario?.id)
-      // Re-apply difficulty after reset (resetGame overwrites it with STANDARD)
       if (selectedDiff && selectedDiff !== 'STANDARD') {
-        useGameStore.getState().setDifficulty(selectedDiff)
+        const sd = useGameStore.getState() as any
+        if (sd.setDifficulty) sd.setDifficulty(selectedDiff)
       }
-      useGameStore.getState().startAutoAdvance()
-    } catch(e) {
-      console.error('Deploy error:', e)
-    }
+    } catch(e) { console.error('resetGame error:', e) }
     setScreen('GAME')
   }
 
@@ -96,6 +113,7 @@ export default function App() {
 
   if (isMobile) {
     return (
+      <GameErrorBoundary>
       <div style={{ position:'fixed', inset:0, display:'flex', flexDirection:'column',
         background:'#030a0e', color:'#c8e6c9', overflow:'hidden' }}>
         <TopBar />
@@ -127,10 +145,12 @@ export default function App() {
           <FlashModal event={flashEvent} onDismiss={() => setFlashEvent(null)} />
         )}
       </div>
+      </GameErrorBoundary>
     )
   }
 
   return (
+    <GameErrorBoundary>
     <div style={{ display:'grid', gridTemplateRows:'52px 1fr', height:'100vh', overflow:'hidden', background:'#030a0e', color:'#c8e6c9' }}>
       <TopBar />
       <div style={{ display:'grid', gridTemplateColumns:'1fr 280px', overflow:'hidden', height:'100%' }}>
@@ -157,5 +177,6 @@ export default function App() {
         <FlashModal event={flashEvent} onDismiss={() => setFlashEvent(null)} />
       )}
     </div>
+    </GameErrorBoundary>
   )
 }

@@ -11,12 +11,10 @@ export default function QuoteScreen({ onComplete, duration = 2500 }: Props) {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    // Fade in
-    const t1 = setTimeout(() => setVisible(true), 50)
-    // Hold then complete
+    const t1 = setTimeout(() => setVisible(true), 10)  // near-instant fade in
     const t2 = setTimeout(() => {
       setVisible(false)
-      setTimeout(onComplete, 600)
+      setTimeout(onComplete, 400)
     }, duration)
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
