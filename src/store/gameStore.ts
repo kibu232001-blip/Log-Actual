@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { GameState, GameActions, UIState, TurnPhase, Unit, UnitStatus } from '../types/game'
 import { CAMPAIGN_1_DECISIONS, getDecisionsForScenario } from '../data/decisions'
 import { CAMPAIGN_1_NODES, CAMPAIGN_1_LOCS } from '../data/nodes'
+import { getTheaterNetwork } from '../data/scenarioNodes'
 import { CommanderEvent, selectCommanderEvent } from '../data/Commanders'
 import {
   EnemyIntelligence, EnemyAttack, createInitialIntel,
@@ -69,7 +70,12 @@ function buildInitialState(scenarioId='CAMPAIGN_1'): GameState & { realConvoys:R
   const unitList  = getScenarioUnits(scenarioId)
   const units     = unitList.reduce((a,u)=>({...a,[u.id]:u}),{} as Record<string,Unit>)
   const nodes     = CAMPAIGN_1_NODES.reduce((a,n)=>({...a,[n.id]:n}),{})
-  const locs      = CAMPAIGN_1_LOCS.reduce((a,l)=>({...a,[l.id]:l}),{})
+  // Use theater network LOCs (l01, l02...) so interdiction IDs match the map renderer
+  const theater   = getTheaterNetwork(scenarioId)
+  const locs      = theater.locs.reduce((a:any, l:any) => ({
+    ...a,
+    [l.id]: { id:l.id, fromNodeId:l.from, toNodeId:l.to, status:'OPEN', threatLevel:l.threat||'LOW', travelTimeHours:12, type:l.type }
+  }), {})
   const meta      = getScenarioMeta(scenarioId)
   const sw=calcSW(units),rct=calcRCT(units),sigma=calcSigma(sw,rct),avg=calcAvg(units)
 

@@ -192,11 +192,19 @@ function ConvoyDispatch({ node, unit, currentDay, onDispatch, onCancel }: Dispat
         }}>
           <div style={{color:routeBlocked?'#ff2200':routeContested?'#ff8800':'#2d5a32'}}>
             {routeBlocked ? '⛔ THIS ROUTE IS INTERDICTED — CONVOY CANNOT MOVE' :
-             routeContested ? '⚠ ROUTE CONTESTED — AMBUSH RISK · +1 DAY DELAY' :
+             routeContested ? '⚠ ROUTE CONTESTED — +25% AMBUSH RISK · +1 DAY DELAY' :
+             selectedRoute.threat === 'HIGH' ? `⚠ HIGH THREAT ROUTE — +15% AMBUSH RISK · ETA D+${finalETA}` :
+             selectedRoute.threat === 'MEDIUM' ? `△ MEDIUM THREAT — +8% AMBUSH RISK · ETA D+${finalETA}${weather!=='CLEAR'?' ('+weather+')':''}` :
              `✓ ROUTE CLEAR — ETA D+${finalETA}${weather!=='CLEAR'?' ('+weather+')':''}`}
           </div>
           {(routeBlocked||routeContested)&&!isAir&&(
             <div style={{color:'#444',marginTop:3}}>Switch to AIR SORTIE to bypass ground interdiction</div>
+          )}
+          {!routeBlocked && !routeContested && totalLoad > 0 && (
+            <div style={{color:'#2d5a32',marginTop:3,fontSize:8}}>
+              TOTAL CARGO: {totalLoad}t{totalLoad>60?' ⚠ HEAVY LOAD':''}
+              {totalLoad>60&&!isAir?' (+1 DAY WEIGHT PENALTY)':''}
+            </div>
           )}
         </div>
       )}
