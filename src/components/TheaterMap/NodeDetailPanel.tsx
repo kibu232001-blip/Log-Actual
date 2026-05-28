@@ -342,6 +342,9 @@ function ConvoyDispatch({ node, unit, currentDay, onDispatch, onCancel }: Dispat
 export default function NodeDetailPanel({ node, onClose }: Props) {
   const { units, currentDay } = useGameStore()
   const executeCommanderAction = useGameStore(s => (s as any).executeCommanderAction)
+  const realConvoys = useGameStore(s => (s as any).realConvoys || []) as any[]
+  const activeScenarioId = useGameStore(s => (s as any).activeScenarioId || 'CAMPAIGN_1')
+  const theater = getTheaterNetwork(activeScenarioId)
   const unit = node.unitId ? (Object.values(units) as any[]).find(u=>u.id===node.unitId) : null
   const [action, setAction] = useState<ActionMode>(null)
   const [convoyClass, setConvoyClass] = useState(2)
@@ -451,7 +454,114 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
 
       <div style={{overflowY:'auto',flex:1}}>
 
-        {/* ── EMERGENCY ACTION STRIP — shown when unit is in crisis ── */}
+        {/* ── PORT / AIRBASE MANIFEST ── incoming & scheduled shipments ── */}
+        {(() => {
+          const theaterNode = theater.nodes.find((n:any) => n.id === node.id || n.unitId === node.id)
+          const nodeType = theaterNode?.nodeType || ''
+          const isPortOrAirbase = ['SEAPORT','AERIAL_PORT','DEPOT','ASP'].includes(nodeType)
+          if (!isPortOrAirbase) return null
+
+          // Find convoys passing through or arriving at this node
+          const inbound = realConvoys.filter((c:any) =>
+            c.status === 'EN_ROUTE' && (c.toUnitId === node.id || c.toUnitId === node.unitId)
+          )
+          const outbound = realConvoys.filter((c:any) =>
+            c.status === 'EN_ROUTE' && (c.fromNodeId === node.id || c.fromNodeId === node.unitId)
+          )
+          const delivered = realConvoys.filter((c:any) =>
+            c.status === 'DELIVERED' && (c.toUnitId === node.id || c.toUnitId === node.unitId) &&
+            currentDay - (c.arrivedDay || 0) <= 3
+          )
+
+          const typeIcon: Record<string,string> = { AIR:'✈', HELO:'🚁', SEA:'⛴', GROUND:'🚛' }
+          const clLabel = (cargo: any[]) => cargo?.map((c:any) => `CL ${['I','II','III','IV','V','VIII','IX'][c.supplyClass-1]||c.supplyClass} ×${c.amount}`).join(', ') || '—'
+
+          return (
+            <div style={{padding:'10px 14px',borderBottom:'1px solid #0d2010'}}>
+              <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#1a5a3a',letterSpacing:3,marginBottom:8}}>
+                ▸ {nodeType} MANIFEST — D+{currentDay}
+              </div>
+
+              {/* Inbound */}
+              {inbound.length > 0 && (
+                <div style={{marginBottom:8}}>
+                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#00ff88',letterSpacing:2,marginBottom:4}}>
+                    INBOUND ({inbound.length})
+                  </div>
+                  {inbound.map((c:any) => {
+                    const eta = Math.max(0, (c.departedDay||0) + (c.travelDays||1) - currentDay)
+                    const progress = Math.min(100, Math.round(((currentDay-(c.departedDay||0))/(c.travelDays||1))*100))
+                    return (
+                      <div key={c.id} style={{marginBottom:5,padding:'5px 8px',background:'rgba(0,255,136,0.05)',border:'1px solid #0d3020',borderRadius:3}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                          <span style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:13,color:'#00ff88',fontWeight:700}}>
+                            {typeIcon[c.assetType||'GROUND']} {c.assetType||'GROUND'} CONVOY
+                          </span>
+                          <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:'#2a8a5a'}}>
+                            ETA D+{eta} {eta===0?'TODAY':eta===1?'TOMORROW':''}
+                          </span>
+                        </div>
+                        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#2d5a32',marginTop:2}}>
+                          {clLabel(c.cargo)}
+                        </div>
+                        <div style={{width:'100%',height:3,background:'rgba(255,255,255,.08)',borderRadius:2,marginTop:4,overflow:'hidden'}}>
+                          <div style={{width:`${progress}%`,height:'100%',background:'#00ff88',transition:'width 1s'}}/>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Outbound */}
+              {outbound.length > 0 && (
+                <div style={{marginBottom:8}}>
+                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#4488ff',letterSpacing:2,marginBottom:4}}>
+                    OUTBOUND ({outbound.length})
+                  </div>
+                  {outbound.map((c:any) => {
+                    const dest = theater.nodes.find((n:any)=>n.unitId===c.toUnitId||n.id===c.toUnitId)
+                    return (
+                      <div key={c.id} style={{marginBottom:5,padding:'5px 8px',background:'rgba(68,136,255,0.05)',border:'1px solid #0d1a30',borderRadius:3}}>
+                        <div style={{display:'flex',justifyContent:'space-between'}}>
+                          <span style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:13,color:'#4488ff',fontWeight:700}}>
+                            {typeIcon[c.assetType||'GROUND']} → {dest?.name||c.toUnitId}
+                          </span>
+                          <span style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#2a4a6a'}}>{c.assetType}</span>
+                        </div>
+                        <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#2a4a6a',marginTop:2}}>
+                          {clLabel(c.cargo)}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Recently delivered */}
+              {delivered.length > 0 && (
+                <div style={{marginBottom:4}}>
+                  <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:8,color:'#887744',letterSpacing:2,marginBottom:4}}>
+                    RECENTLY DELIVERED
+                  </div>
+                  {delivered.map((c:any) => (
+                    <div key={c.id} style={{marginBottom:3,padding:'4px 8px',background:'rgba(136,119,68,0.05)',border:'1px solid #2a2010',borderRadius:3,opacity:0.7}}>
+                      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:9,color:'#887744'}}>
+                        ✓ {typeIcon[c.assetType||'GROUND']} {c.assetType} — {clLabel(c.cargo)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {inbound.length === 0 && outbound.length === 0 && (
+                <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:'#1a3a20',textAlign:'center',padding:'8px 0'}}>
+                  NO ACTIVE SHIPMENTS
+                </div>
+              )}
+            </div>
+          )
+        })()}
         {isEmergency && (
           <div style={{
             padding:'10px 14px', background:'rgba(255,30,0,0.08)',

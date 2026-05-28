@@ -155,6 +155,8 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
     const overlay = new MapboxOverlay({layers:[], interleaved:false})
     ml.addControl(overlay)
     overlayRef.current = overlay
+    // Render straight-line fallback routes immediately, before OSRM returns
+    setTimeout(()=>{ rebuildStaticLayers(); commitLayers() }, 100)
     return ()=>{ try{ml.removeControl(overlay)}catch(e){}; overlayRef.current=null }
   },[mapInstance])
 
@@ -184,7 +186,7 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
   function rebuildStaticLayers() {
     const routes = routesRef.current
 
-    // ── LOC PATHS — only changes when interdiction status changes ───────────
+    // ── LOC PATHS ────────────────────────────────────────────────────────────
     staticPathRef.current = theater.locs.map((loc:any)=>{
       const live   = storeLocs?.[loc.id]
       const status = live?.status||loc.status||'OPEN'
@@ -195,9 +197,14 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
                   : LOC_COLORS[status]||LOC_COLORS.OPEN
 
       let path:[number,number][]|null = null
-      if (geo?.coordinates?.length>1) path = geo.coordinates
-      else {
-        const f=nodeMap[loc.from], t=nodeMap[loc.to]
+      if (geo?.coordinates?.length>1) {
+        path = geo.coordinates
+      } else {
+        // Straight line fallback — always renders something
+        const fNode = theater.nodes.find((n:any)=>n.id===loc.from)
+        const tNode = theater.nodes.find((n:any)=>n.id===loc.to)
+        const f = fNode ? {lat:fNode.lat,lng:fNode.lng} : nodeMap[loc.from]
+        const t = tNode ? {lat:tNode.lat,lng:tNode.lng} : nodeMap[loc.to]
         if (f&&t) path = [[f.lng,f.lat],[t.lng,t.lat]]
       }
       if (!path) return null

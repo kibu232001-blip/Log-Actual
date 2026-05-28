@@ -926,6 +926,22 @@ export const useGameStore = create<Store>((set,get)=>({
       locInterdictions,
       enemyIntel:intel,
       lastEnemyAttacks:enemyAttacks,
+
+      // ── EARLY WARNING SYSTEM — FLASH alerts for incoming attacks ──────────
+      // Inject warning events into the feed so player sees "INCOMING" before impact
+      ...(enemyAttacks.length > 0 ? (() => {
+        const warnings = enemyAttacks.map((atk:any) => ({
+          id:`EW_${atk.id}_${Date.now()}`,
+          type:'ATTACK', priority:'FLASH',
+          title:`⚠ INCOMING — ${atk.type || 'ROCKET'} DETECTED`,
+          report:`Early warning radar confirms hostile ${atk.type||'rocket'} launch. Impact imminent on ${atk.targetLOC||atk.targetUnit||'FRIENDLY POSITION'}. All personnel take cover.`,
+          effects:[], affectedAssets:[], acknowledged:false, mitigated:false,
+          severity:'CRITICAL', location:'THEATER', mitigationWindow:0,
+        }))
+        return {
+          appliedBattlefieldEvents: [...(s.appliedBattlefieldEvents||[]), ...warnings, ...dayEvents].slice(-50)
+        }
+      })() : {}),
       weather:currentWeather as any,
       daysSinceLastAction: daysSinceAction,
       // Regen 1 air sortie per day (max 4, difficulty scaled)

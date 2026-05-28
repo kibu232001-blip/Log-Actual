@@ -306,23 +306,37 @@ export default function AttackAnimations({ mapRef }: Props) {
 
       {/* ── IMPACT EXPLOSIONS ── */}
       {hits.map(h => (
-        <div key={h.id} style={{position:'absolute', left:h.x, top:h.y, pointerEvents:'none', zIndex:62}}>
-          {/* Main explosion sprite */}
-          <div style={{animation:`impact-pop 1.2s ease-out forwards`}}>
-            <Sprite name={impactSprite(h.type)} size={Math.round(90 * h.scale)} style={{marginLeft:`-${45*h.scale}px`,marginTop:`-${45*h.scale}px`}}/>
+        <div key={h.id} style={{
+          position:'absolute', left:h.x, top:h.y,
+          pointerEvents:'none', zIndex:62,
+          width:0, height:0,  // anchor point
+        }}>
+          {/* Main explosion */}
+          <div style={{
+            position:'absolute',
+            width: Math.round(90*h.scale), height: Math.round(90*h.scale),
+            left: -Math.round(45*h.scale), top: -Math.round(45*h.scale),
+            animation:'impact-pop 1.2s ease-out forwards',
+          }}>
+            <Sprite name={impactSprite(h.type)} size={Math.round(90*h.scale)}/>
           </div>
           {/* Shockwave ring */}
           <div style={{
             position:'absolute',
-            left:0, top:0,
-            width: 60*h.scale, height: 60*h.scale,
-            border: `3px solid ${h.type==='DRONE'?'rgba(100,180,255,0.7)':'rgba(255,100,20,0.7)'}`,
-            borderRadius: '50%',
-            animation: 'impact-ring 0.9s ease-out forwards',
+            width: Math.round(60*h.scale), height: Math.round(60*h.scale),
+            left: -Math.round(30*h.scale), top: -Math.round(30*h.scale),
+            border:`3px solid ${h.type==='DRONE'?'rgba(100,180,255,0.8)':'rgba(255,120,20,0.8)'}`,
+            borderRadius:'50%',
+            animation:'impact-ring 0.9s ease-out forwards',
           }}/>
-          {/* Smoke rising */}
-          <div style={{animation:'smoke-rise 1.8s ease-out 0.3s forwards', opacity:0}}>
-            <Sprite name="smoke" size={60} style={{marginLeft:'-30px',marginTop:'-30px'}}/>
+          {/* Smoke */}
+          <div style={{
+            position:'absolute',
+            width:60, height:60, left:-30, top:-30,
+            animation:'smoke-rise 2s ease-out 0.2s forwards',
+            opacity:0,
+          }}>
+            <Sprite name="smoke" size={60}/>
           </div>
         </div>
       ))}
