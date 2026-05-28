@@ -353,6 +353,10 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
   const [injected, setInjected] = useState<string[]>([])
   const [flashIdxs, setFlashIdxs] = useState<number[]>([])
   const [emergencyFired, setEmergencyFired] = useState<string|null>(null)
+  const [pushTarget, setPushTarget] = useState('')
+  const [pushAmt, setPushAmt] = useState(20)
+  const portStockpiles = useGameStore(s => (s as any).portStockpiles || {}) as any
+  const pushFromPort   = useGameStore(s => (s as any).pushFromPort) as any
   const prevLevels = React.useRef<number[]>([])
 
   const isCrisis = unit && (unit.status === 'STONEWALL' || unit.status === 'RED')
@@ -461,12 +465,7 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
           const isPortOrAirbase = ['SEAPORT','AERIAL_PORT','DEPOT','ASP'].includes(nodeType)
           if (!isPortOrAirbase) return null
 
-          const portStockpiles = useGameStore.getState().portStockpiles as any || {}
           const staged = portStockpiles[node.id] || portStockpiles[theaterNode?.id] || 0
-          const pushFromPort = (useGameStore.getState() as any).pushFromPort
-          const allUnitsList = Object.values(units) as any[]
-          const [pushTarget, setPushTarget] = React.useState('')
-          const [pushAmt, setPushAmt] = React.useState(20)
 
           // Find convoys passing through or arriving at this node
           const inbound = realConvoys.filter((c:any) =>
