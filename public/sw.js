@@ -26,7 +26,9 @@ self.addEventListener('activate', e => {
 })
 
 self.addEventListener('fetch', e => {
-  // Network first for API calls, cache first for assets
+  // Only cache http/https — skip chrome-extension, data URIs, etc.
+  if (!e.request.url.startsWith('http')) return
+
   const url = new URL(e.request.url)
   
   if (url.hostname.includes('elevenlabs') || 
