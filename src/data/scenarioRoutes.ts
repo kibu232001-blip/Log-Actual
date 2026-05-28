@@ -100,6 +100,8 @@ export function getScenarioRoutes(scenarioId: string): ScenarioRoute[] {
 export interface ScenarioMeta {
   totalDays: number
   enemyActivityLevel: number
+  theaterResupplyInterval: number  // days between theater pushes
+  theaterResupplyVolume: number    // % per class per push (e.g. 25 = +25% CL I/III/V/IX to all units)
   // Special mechanics flags
   heatMultiplier?: boolean        // C3: CL_I +40%, CL_III +35%
   rctProcessPenalty?: boolean     // C4: passive RCT increase without dispatches
@@ -108,12 +110,12 @@ export interface ScenarioMeta {
 }
 
 export const SCENARIO_META: Record<string, ScenarioMeta> = {
-  CAMPAIGN_1: { totalDays:30, enemyActivityLevel:0.35 },
-  CAMPAIGN_2: { totalDays:21, enemyActivityLevel:0.55 },
-  CAMPAIGN_3: { totalDays:25, enemyActivityLevel:0.50, heatMultiplier:true },
-  CAMPAIGN_4: { totalDays:20, enemyActivityLevel:0.15, rctProcessPenalty:true },
-  CAMPAIGN_5: { totalDays:28, enemyActivityLevel:0.40, dayGatedThreat:10 },
-  CAMPAIGN_6: { totalDays:35, enemyActivityLevel:0.60, airOnlyLogistics:true },
+  CAMPAIGN_1: { totalDays:30, enemyActivityLevel:0.35, theaterResupplyInterval:5, theaterResupplyVolume:20 },  // Europe - good infrastructure, 5-day push
+  CAMPAIGN_2: { totalDays:21, enemyActivityLevel:0.55, theaterResupplyInterval:4, theaterResupplyVolume:18 },  // Baltic - shorter campaign, faster cycle
+  CAMPAIGN_3: { totalDays:25, enemyActivityLevel:0.50, heatMultiplier:true, theaterResupplyInterval:6, theaterResupplyVolume:22 },  // Middle East - longer haul
+  CAMPAIGN_4: { totalDays:20, enemyActivityLevel:0.15, rctProcessPenalty:true, theaterResupplyInterval:7, theaterResupplyVolume:25 },  // Pacific admin - slower but larger
+  CAMPAIGN_5: { totalDays:28, enemyActivityLevel:0.40, dayGatedThreat:10, theaterResupplyInterval:5, theaterResupplyVolume:20 },
+  CAMPAIGN_6: { totalDays:35, enemyActivityLevel:0.60, airOnlyLogistics:true, theaterResupplyInterval:8, theaterResupplyVolume:30 },  // Island hop - long resupply cycle
 }
 
 export function getScenarioMeta(scenarioId: string): ScenarioMeta {

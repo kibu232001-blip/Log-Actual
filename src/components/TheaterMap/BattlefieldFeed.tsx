@@ -52,7 +52,7 @@ export default function BattlefieldFeed() {
   const flyToLocation    = useGameStore(s => (s as any).flyToLocation)
   const getEventCoords   = useEventCoordLookup()
   const applyEventResponse      = useGameStore(s => (s as any).applyEventResponse)
-  const setPendingDecisionEvent = useGameStore(s => { const st = s as any; return (ev:any)=>{ if(st.pendingDecisionEvent===null && ev?.responseOptions?.length>0) (s as any).clearDecisionEvent?.(); (s as any).__set?.({pendingDecisionEvent:ev})} })
+  const setPendingDecisionEvent = useGameStore(s => { const st = s as any; return (ev:any)=>{ if(st.pendingDecisionEvent===null && (ev as any)?.responseOptions?.length>0) (s as any).clearDecisionEvent?.(); (s as any).__set?.({pendingDecisionEvent:ev})} })
   const setWeather    = useGameStore(s => (s as any).setWeather)
   const realtimeFeedEvents = useGameStore(s => (s as any).realtimeFeedEvents || [])
   const [recentTypes, setRecentTypes] = useState<BattlefieldEventType[]>([])
@@ -240,7 +240,7 @@ ${option.consequence}`,
             if (coords) flyToLocation(coords.lat, coords.lng, coords.zoom)
           }
           // Trigger weather effect if weather event
-          if (!wasExpanded && setWeather && ev.type === 'WEATHER') {
+          if (!wasExpanded && setWeather && ev.type === ('WEATHER' as any)) {
             const wx = ev.title.toLowerCase().includes('storm') ? 'STORM'
                      : ev.title.toLowerCase().includes('fog') ? 'FOG' : 'RAIN'
             setWeather(wx)
@@ -351,13 +351,13 @@ ${option.consequence}`,
                   </div>
 
                   {/* Multi-option response */}
-                  {!ev.mitigated && ev.responseOptions && (
+                  {!ev.mitigated && (ev as any)?.responseOptions && (
                     <div style={{ marginTop:6 }}>
                       <div style={{ fontSize:14, letterSpacing:2, color:'#1a5a3a', marginBottom:6, fontFamily:'Share Tech Mono,monospace' }}>
                         COMMANDER — SELECT RESPONSE:
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-                        {(ev.responseOptions as any[]).map((opt: any) => {
+                        {((ev as any)?.responseOptions as any[]).map((opt: any) => {
                           const riskColor = opt.risk==='CRITICAL'?'#ff2200':opt.risk==='HIGH'?'#ff6600':opt.risk==='MEDIUM'?'#ffaa00':'#00ff88'
                           return (
                             <button key={opt.id} onClick={e=>{ e.stopPropagation(); mitigateWithOption(ev.id, opt) }}
@@ -391,7 +391,7 @@ ${option.consequence}`,
                       </div>
                     </div>
                   )}
-                  {!ev.mitigated && !ev.responseOptions && (
+                  {!ev.mitigated && !(ev as any)?.responseOptions && (
                     <div style={{ display:'flex', gap:6 }}>
                       <button onClick={e => { e.stopPropagation(); mitigate(ev.id) }} style={{ flex:1, background:'rgba(0,255,136,0.12)', border:'1px solid #2ecc71', color:'#2ecc71', padding:'6px 0', borderRadius:3, cursor:'pointer', fontFamily:'Barlow Condensed,sans-serif', fontWeight:700, fontSize:16 }}>
                         ✓ ACKNOWLEDGE

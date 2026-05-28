@@ -8,7 +8,7 @@ export type NodeType = 'PORT' | 'AERIAL_PORT' | 'DEPOT' | 'ASP' | 'FOB' | 'AIRFI
 
 export type NodeStatus = 'ACTIVE' | 'DEGRADED' | 'INTERDICTED' | 'DESTROYED';
 
-export type TurnPhase = 'INTELLIGENCE' | 'PLANNING' | 'EXECUTION';
+export type TurnPhase = 'INTELLIGENCE' | 'PLANNING' | 'EXECUTION' | 'COMPLETE';
 
 export type ConvoyStatus = 'QUEUED' | 'EN_ROUTE' | 'DELIVERED' | 'INTERDICTED' | 'DELAYED';
 
@@ -197,6 +197,7 @@ export interface GameState {
   currentDay: number;
   totalDays: number;
   currentPhase: TurnPhase;
+  difficulty?: 'EASY'|'STANDARD'|'HARD'|'SFC_CHALLENGE';
 
   // Theater
   units: Record<string, Unit>;

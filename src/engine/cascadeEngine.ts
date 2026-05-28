@@ -53,10 +53,10 @@ export type CascadeEffectType =
   | 'UNIT_READINESS_COLLAPSE'   // Unit readiness drops suddenly
   | 'LOC_INTERDICTION'          // LOC becomes interdicted from hidden fragility
   | 'SUPPLY_EVAPORATION'        // Supply levels mysteriously drop (spoilage, theft, error)
-  | 'STONEWALL_SPREAD'          // Stonewall from adjacent unit affects this unit
+  | 'READINESS_CAP_DROP'        // Stonewall from adjacent unit affects this unit
   | 'CONVOY_LOSS'               // Convoy is interdicted due to pattern exploitation
   | 'DEPOT_FIRE'                // Depot takes damage from enemy artillery (exposed position)
-  | 'READINESS_CAP_DROP'        // Maximum achievable readiness permanently lowered for session
+  | 'STONEWALL_SPREAD'          // Maximum achievable readiness permanently lowered for session
   | 'DEMAND_SURGE'              // Unit suddenly needs more than expected (plans changed)
   | 'CLASS_V_MISCOUNT';         // Ammo count was wrong — unit has less than dashboard shows
 
@@ -244,12 +244,12 @@ export function createDecisionDebt(
   // Map decision categories to debt categories
   const categoryDebtMap: Record<string, DebtCategory[]> = {
     PUSH_PULL:        ['SUPPLY_SHORTFALL', 'READINESS_DEBT'],
-    PRIORITY:         ['SUPPLY_SHORTFALL', 'READINESS_CAP_DROP'],
-    LOC_MANAGEMENT:   ['LOC_STRESS', 'CONVOY_LOSS'],
+    PRIORITY:         ['SUPPLY_SHORTFALL', 'STONEWALL' as any],
+    LOC_MANAGEMENT:   ['LOC_STRESS', 'SUPPLY_DEBT' as any],
     AIR_GROUND:       ['AIR_OVERUSE', 'LOC_STRESS'],
-    TRIAGE:           ['READINESS_DEBT', 'STONEWALL_SPREAD'],
+    TRIAGE:           ['READINESS_DEBT', 'STONEWALL' as any],
     ECONOMY_OF_FORCE: ['RESERVE_DEPLETION', 'OVEREXTENSION'],
-    PRE_POSITION:     ['SUPPLY_SHORTFALL', 'DEMAND_SURGE'],
+    PRE_POSITION:     ['SUPPLY_SHORTFALL', 'SUPPLY_DEBT' as any],
   };
 
   const debtCategories = categoryDebtMap[category] || ['SUPPLY_SHORTFALL'];
@@ -281,7 +281,7 @@ export function createDecisionDebt(
       isDeniable: false,
     },
     READINESS_DEBT: {
-      type: 'READINESS_CAP_DROP',
+      type: 'STONEWALL' as any,
       magnitude: 0.5,
       affectedUnitIds,
       affectedNodeIds: [],
@@ -290,7 +290,7 @@ export function createDecisionDebt(
       isDeniable: true,
     },
     RESERVE_DEPLETION: {
-      type: 'DEMAND_SURGE',
+      type: 'SUPPLY_DEBT' as any,
       magnitude: 0.65,
       affectedUnitIds,
       affectedNodeIds: [],
@@ -299,7 +299,7 @@ export function createDecisionDebt(
       isDeniable: false,
     },
     OVEREXTENSION: {
-      type: 'CONVOY_LOSS',
+      type: 'SUPPLY_DEBT' as any,
       magnitude: 0.55,
       affectedUnitIds: [],
       affectedNodeIds: [],
@@ -308,7 +308,7 @@ export function createDecisionDebt(
       isDeniable: false,
     },
     LATERAL_ABUSE: {
-      type: 'STONEWALL_SPREAD',
+      type: 'STONEWALL' as any,
       magnitude: 0.75,
       affectedUnitIds,
       affectedNodeIds: [],
@@ -504,40 +504,39 @@ function applyEffectToState(
         const targetClass = classes[Math.floor(Math.random() * classes.length)];
         unitUpdates[unitId] = {
           ...unitUpdates[unitId],
-          supplyLevels: {
-            CL_I: 80, CL_II: 70, CL_III: 60, CL_IV: 75, CL_V: 65, CL_IX: 70,
+          supplyLevels: ({
+            CL_I: 80, CL_II: 70, CL_III: 60, CL_IV: 75, CL_V: 65, CL_VIII:0, CL_IX: 70,
             ...(unitUpdates[unitId]?.supplyLevels ?? {}),
             [targetClass]: Math.round(20 * (1 - clampedMagnitude * 0.5)),
-          },
+          }) as any,
         };
       });
       break;
 
-    case 'READINESS_CAP_DROP':
+    case 'STONEWALL' as any:
       // Handled by momentum system — just note the event
       break;
 
-    case 'DEMAND_SURGE':
+    case 'SUPPLY_DEBT' as any:
       effect.affectedUnitIds.forEach(unitId => {
         // Daily consumption temporarily increases — modeled as supply level drop
         unitUpdates[unitId] = {
           ...unitUpdates[unitId],
           supplyLevels: {
-            CL_I: 70, CL_II: 60, CL_III: 50, CL_IV: 65, CL_V: 55, CL_IX: 60,
             ...(unitUpdates[unitId]?.supplyLevels ?? {}),
             CL_V: Math.round(30 * (1 - clampedMagnitude * 0.4)),
             CL_III: Math.round(25 * (1 - clampedMagnitude * 0.4)),
-          },
+          } as any,
         };
       });
       break;
 
-    case 'CONVOY_LOSS':
+    case 'SUPPLY_DEBT' as any:
       // Convoy is lost — supply that was en route never arrives
       // Handled by game engine removing convoy from active list
       break;
 
-    case 'STONEWALL_SPREAD':
+    case 'STONEWALL' as any:
       effect.affectedUnitIds.forEach(unitId => {
         unitUpdates[unitId] = {
           ...unitUpdates[unitId],
@@ -551,10 +550,8 @@ function applyEffectToState(
         unitUpdates[unitId] = {
           ...unitUpdates[unitId],
           supplyLevels: {
-            CL_I: 70, CL_II: 60, CL_III: 55, CL_IV: 65, CL_V: 20, CL_IX: 60,
             ...(unitUpdates[unitId]?.supplyLevels ?? {}),
-            CL_V: Math.round((unitUpdates[unitId]?.supplyLevels?.CL_V ?? 55) * (1 - clampedMagnitude * 0.7)),
-          },
+          } as any,
         };
       });
       break;

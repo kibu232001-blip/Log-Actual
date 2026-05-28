@@ -150,7 +150,7 @@ export default function CampaignAAR() {
             color:gradeColor, fontFamily:'Barlow Condensed,sans-serif',
             fontWeight:700, fontSize:15, letterSpacing:2, borderRadius:4, cursor:'pointer',
           }}>REPLAY CAMPAIGN</button>
-          <button onClick={() => resetGame()} style={{
+          <button onClick={() => resetGame('CAMPAIGN_1')} style={{
             flex:1, padding:'11px 0',
             background:'rgba(0,0,0,0.3)', border:'1px solid #2d5a32',
             color:'#4a7a54', fontFamily:'Barlow Condensed,sans-serif',

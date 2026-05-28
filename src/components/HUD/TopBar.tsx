@@ -75,6 +75,8 @@ export default function TopBar() {
   const phase     = getCampaignPhase(currentDay)
   const isMobile  = window.innerWidth < 768
   const airSorties = useGameStore(s => (s as any).airSorties ?? 4)
+  const nextResupplyDay = useGameStore(s => (s as any).nextTheaterResupplyDay ?? 5)
+  const daysToResupply = Math.max(0, nextResupplyDay - currentDay)
 
   const sigmaColor = metrics.sigmaLevel >= 3 ? '#00ff88' : metrics.sigmaLevel >= 2 ? '#ffaa00' : '#ff4444'
 
@@ -176,6 +178,7 @@ export default function TopBar() {
             { label:'S/W',  value:`${metrics.stonewallRate.toFixed(0)}%`,    color:swColor    },
             { label:'RDNS', value:`${Math.round(metrics.avgReadiness??0)}%`, color: (metrics.avgReadiness??0)>70?'#00ff88':(metrics.avgReadiness??0)>50?'#ffaa00':'#ff4444' },
             { label:'✈',    value:`${airSorties}`,                           color: airSorties>1?'#00aaff':airSorties===1?'#ffaa00':'#ff4444' },
+            { label:'PUSH',  value: daysToResupply===0?'TODAY':`D+${daysToResupply}`, color: daysToResupply===0?'#00ff88':daysToResupply<=2?'#ffaa00':'#4a8a5a' },
           ].map((m,i) => (
             <div key={m.label} style={{
               flex:1, textAlign:'center',

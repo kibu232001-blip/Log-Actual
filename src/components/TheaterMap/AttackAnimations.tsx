@@ -165,7 +165,7 @@ export default function AttackAnimations({ mapRef }: Props) {
       {/* Projectiles */}
       {projs.filter(p => p.active && !p.hit).map(p => {
         const style = getProjectileStyle(p.type)
-        const pos = p.type === 'DRONE'
+        const pos = p.type === ('DRONE' as any)
           ? dronePoint(p.fromX, p.fromY, p.toX, p.toY, p.progress)
           : straightPoint(p.fromX, p.fromY, p.toX, p.toY, p.progress)
 
@@ -188,7 +188,7 @@ export default function AttackAnimations({ mapRef }: Props) {
               }}/>
             )}
             {/* Military missile silhouettes — detailed SVG profiles */}
-            {p.type === 'DRONE' && (
+            {p.type === ('DRONE' as any) && (
               <svg width="36" height="20" viewBox="0 0 36 20"
                 style={{ transform:`rotate(${angle}deg)`, animation:'drone-blink .6s infinite', overflow:'visible' }}>
                 {/* Fuselage */}

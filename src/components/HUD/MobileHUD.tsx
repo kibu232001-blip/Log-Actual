@@ -5,6 +5,12 @@ import { getTheaterNetwork } from '../../data/scenarioNodes'
 
 type Tab = 'UNITS' | 'SUPPLY' | 'FEED'
 
+
+// Color helper
+function getColor(r: number): string {
+  return r > 70 ? '#00ff88' : r > 40 ? '#ffaa00' : '#ff4444'
+}
+
 const CLS_LABELS = ['CL I','CL II','CL III','CL IV','CL V','CL VIII','CL IX']
 const CLS_KEYS   = ['CL_I','CL_II','CL_III','CL_IV','CL_V','CL_VIII','CL_IX']
 

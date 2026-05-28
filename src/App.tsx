@@ -86,7 +86,7 @@ export default function App() {
   }
 
   const handleBackToSelect = () => {
-    try { resetGame() } catch(e) {}
+    try { resetGame('CAMPAIGN_1') } catch(e) {}
     setScreen('MISSION_SELECT')
   }
 

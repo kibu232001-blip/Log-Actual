@@ -47,9 +47,12 @@ interface RealConvoy {
   id:string; fromNodeId:string; toUnitId:string; locId:string
   cargo:Array<{supplyClass:number;amount:number}>
   departedDay:number; travelDays:number; isAir:boolean
+  assetType:string; isStandingOrder?:boolean
   status:'EN_ROUTE'|'DELIVERED'|'INTERDICTED'
-  progress:number  // 0-1 for visual
+  progress:number
+  [key:string]:any
 }
+
 
 // Route definitions for auto-dispatch
 function findMostNeededClass(unit:Unit):number {
@@ -106,17 +109,19 @@ function buildInitialState(scenarioId='CAMPAIGN_1'): GameState & { realConvoys:R
     pendingDecision:null, completedDecisions:[],
     metrics:{ avgReadiness:avg, stonewallRate:sw, avgRequestCycleTime:rct, sigmaLevel:sigma, doctrineAccuracy:0, forceMultiplierTotal:0 },
     metricsHistory:[], weather:'CLEAR', isGameOver:false, isPaused:false, showAAR:false,
-    difficulty: 'STANDARD' as 'EASY'|'STANDARD'|'HARD'|'SFC_CHALLENGE',
+    difficulty: 'STANDARD',
     airSorties: 4,
     convoyStats: { dispatched:0, delivered:0, interdicted:0 },
-    // Standing FRAGO orders — auto-executed each day advance
+    standingOrders: {} as Record<string, any>,
+    nextTheaterResupplyDay: 0 as number,  // set after meta loads
     // key: destinationUnitId, value: { sourceUnitId, routeId, cargo, assetType, active }
     standingOrders: {} as Record<string, {
       sourceUnitId:string; routeId:string; assetType:string;
       cargo:Array<{supplyClass:number;amount:number}>; active:boolean; label:string
     }>,
     realConvoys:[], mapFlyTarget:null as {lat:number;lng:number;zoom:number}|null, failureReason:null as string|null, pendingDecisionEvent:null as any, daysSinceLastAction:0, totalDecisionsMade:0, pendingCommanderEvent:null, firedCommanderEventIds:[], enemyAOs:[], enemyIntel:createInitialIntel(), lastEnemyAttacks:[], activeScenarioId:scenarioId, appliedBattlefieldEvents:day1Events as any[], locInterdictions:({} as Record<string,number>),
-  }
+    nextTheaterResupplyDay: meta.theaterResupplyInterval || 5,
+  } as any
 }
 
 const INITIAL_UI:UIState = { selectedNodeId:null, selectedUnitId:null, activePanel:'UNITS', showDecisionModal:false, showResultCard:false, lastDecisionResult:null, mapZoom:1, mapOffset:{x:0,y:0} }
@@ -124,11 +129,21 @@ const INITIAL_UI:UIState = { selectedNodeId:null, selectedUnitId:null, activePan
 const PHASES:TurnPhase[]=['INTELLIGENCE','PLANNING','EXECUTION']
 const nextPhase=(p:TurnPhase)=>PHASES[(PHASES.indexOf(p)+1)%PHASES.length]
 
-type Store = GameState & { realConvoys:RealConvoy[]; enemyIntel:EnemyIntelligence; lastEnemyAttacks:EnemyAttack[]; pendingCommanderEvent:CommanderEvent|null; firedCommanderEventIds:string[]; enemyAOs:any[];
-  mapFlyTarget:{lat:number;lng:number;zoom:number}|null; failureReason:string|null;
-  pendingDecisionEvent:any; daysSinceLastAction:number; totalDecisionsMade:number;
-  activeScenarioId:string; appliedBattlefieldEvents:any[];
-  weather:string; realtimeFeedEvents:any[];
+type Store = GameState & {
+  realConvoys:RealConvoy[]; enemyIntel:EnemyIntelligence; lastEnemyAttacks:EnemyAttack[]
+  pendingCommanderEvent:CommanderEvent|null; firedCommanderEventIds:string[]; enemyAOs:any[]
+  difficulty:'EASY'|'STANDARD'|'HARD'|'SFC_CHALLENGE'
+  airSorties:number
+  convoyStats:{ dispatched:number; delivered:number; interdicted:number }
+  standingOrders:Record<string,any>
+  campaignVictory:boolean; campaignGrade:string; victorySigma:number; victoryRCT:number
+  _timerInterval:any; _tacticalInterval:any
+  mapFlyTarget:{lat:number;lng:number;zoom:number}|null; failureReason:string|null
+  pendingDecisionEvent:any; daysSinceLastAction:number; totalDecisionsMade:number
+  activeScenarioId:string; appliedBattlefieldEvents:any[]
+  weather:string; realtimeFeedEvents:any[]
+  locInterdictions:Record<string,number>
+  [key:string]:any
 } & GameActions & UIState & {
   autoAdvanceEnabled:boolean; secondsToNextDay:number
   startAutoAdvance:()=>void; stopAutoAdvance:()=>void; _timerInterval:any
@@ -143,7 +158,7 @@ export const useGameStore = create<Store>((set,get)=>({
   autoAdvanceEnabled:false, secondsToNextDay:120, _timerInterval:null, _tacticalInterval:null, realtimeFeedEvents:[] as any[],
 
   startTacticalFeed:()=>{
-    const existing = get()._tacticalInterval
+    const existing = (get() as any)._tacticalInterval
     if (existing) clearInterval(existing)
     const iv = setInterval(()=>{
       const s = get()
@@ -317,7 +332,7 @@ export const useGameStore = create<Store>((set,get)=>({
     set({_timerInterval:iv, autoAdvanceEnabled:true, secondsToNextDay:120})
   },
 
-  stopAutoAdvance:()=>{ const iv=get()._timerInterval; if(iv) clearInterval(iv); const tiv=get()._tacticalInterval; if(tiv) clearInterval(tiv); set({_timerInterval:null, _tacticalInterval:null, autoAdvanceEnabled:false}) },
+  stopAutoAdvance:()=>{ const iv=get()._timerInterval; if(iv) clearInterval(iv); const tiv=(get() as any)._tacticalInterval; if(tiv) clearInterval(tiv); set({_timerInterval:null, _tacticalInterval:null, autoAdvanceEnabled:false}) },
 
   advanceTurn:()=>{
     const s=get()
@@ -570,7 +585,37 @@ export const useGameStore = create<Store>((set,get)=>({
       const sw2b        = calcSW(updatedUnits)
       const sigma2b     = calcSigma(sw2b, calcRCT(updatedUnits))
 
-      // ── EXECUTE STANDING FRAGO ORDERS ──────────────────────────────────────
+      // ── THEATER RESUPPLY PUSH ──────────────────────────────────────────────────
+      // Out-of-theater supplies arrive on the scheduled interval
+      const nextResupplyDay = (s as any).nextTheaterResupplyDay || 5
+      const resupplyVolume = meta.theaterResupplyVolume || 20
+
+      if (nextDay >= nextResupplyDay) {
+        // Push arrives — add to ALL units proportionally
+        const classKeys = ['CL_I','CL_III','CL_V','CL_IX'] as const
+        Object.entries(updatedUnits).forEach(([id, u]: any) => {
+          const newLvls = { ...u.supplyLevels }
+          classKeys.forEach(k => {
+            newLvls[k] = Math.min(100, (newLvls[k] || 0) + resupplyVolume)
+          })
+          const newR = Math.min(100, Math.round((newLvls.CL_I + newLvls.CL_III + newLvls.CL_V) / 3))
+          updatedUnits[id] = { ...u, supplyLevels: newLvls, readiness: Math.max(u.readiness, newR - 10) }
+        })
+
+        const nextPush = nextResupplyDay + (meta.theaterResupplyInterval || 5)
+        ;(updatedUnits as any).__nextResupplyDay = nextPush
+
+        newFeedEvents.push({
+          id: `THEATER_RESUPPLY_D${nextDay}`, type:'LOGREP', priority:'PRIORITY',
+          title: `THEATER RESUPPLY PUSH ARRIVED — D${nextDay}`,
+          report: `Out-of-theater logistics package delivered. CL I/III/V/IX +${resupplyVolume}% all units. Next push: D+${nextPush}.`,
+          effects: [], affectedAssets: Object.keys(updatedUnits),
+          acknowledged: false, mitigated: true,
+        })
+
+        // Sortie rearm also arrives with theater push
+        ;(s as any).__resupplyDay = nextPush
+      }
       // Auto-dispatch standing orders each day — no commander input needed
       const standingOrders = (s as any).standingOrders || {}
       Object.entries(standingOrders).forEach(([destId, order]:any) => {
@@ -631,6 +676,7 @@ export const useGameStore = create<Store>((set,get)=>({
           effects:[], affectedAssets:[destId], acknowledged:true, mitigated:true,
         })
       })
+      const diff2 = (s as any).difficulty || 'STANDARD'
       const swStreakLimit = diff2==='SFC_CHALLENGE' ? 2 : diff2==='HARD' ? 3 : 4
       const catastrophicCollapse = swUnits / totalUnits >= 0.30
       const sigmaCollapse        = sigma2b < 1.0
@@ -639,7 +685,6 @@ export const useGameStore = create<Store>((set,get)=>({
       const singleUnitCollapse   = Object.values(updatedUnits).some((u:any)=>(u.readiness??100) <= 1 && (u.stonewallStreak??0) >= 2)
 
       // Difficulty-based hard loss: SFC_CHALLENGE = 1 FOB lost = game over, HARD = 2, STANDARD = 3
-      const diff2 = (s as any).difficulty || 'STANDARD'
       const maxFOBsLost = diff2==='SFC_CHALLENGE' ? 1 : diff2==='HARD' ? 2 : 3
       const fobsCurrentlyLost = Object.values(updatedUnits).filter((u:any) => u.status==='DARK' || (u.stonewallStreak||0) >= 4).length
       const fobLossTriggered = fobsCurrentlyLost >= maxFOBsLost
@@ -657,7 +702,7 @@ export const useGameStore = create<Store>((set,get)=>({
                            : null
 
     // Pending doctrine decision
-    const pending=advancing?(getDecisionsForScenario(s.activeScenarioId||'CAMPAIGN_1', nextDay)??null):null
+    const pending=true?(getDecisionsForScenario(s.activeScenarioId||'CAMPAIGN_1', nextDay)??null):null
     const sw2=calcSW(updatedUnits),rct=calcRCT(updatedUnits),sigma=calcSigma(sw2,rct),avg=calcAvg(updatedUnits)
 
     // ── MISSING VARS THAT WERE CRASHING ADVANCE ──────────────────────────────
@@ -838,7 +883,7 @@ export const useGameStore = create<Store>((set,get)=>({
       showAAR:over || campaignFailed,
       failureReason:(campaignFailed ? failureReason : null) as any,
       campaignVictory, campaignGrade,
-      victorySigma, victoryReadiness, victoryRCT,
+      victorySigma:victorySigma as any, victoryReadiness:victoryReadiness as any, victoryRCT:victoryRCT as any,
       realConvoys:newConvoys,
       enemyAOs:updatedAOs,
       locs: updatedLocs,
@@ -849,6 +894,7 @@ export const useGameStore = create<Store>((set,get)=>({
       daysSinceLastAction: daysSinceAction,
       // Regen 1 air sortie per day (max 4, difficulty scaled)
       airSorties: Math.min(4, ((s as any).airSorties ?? 4) + 1),
+      nextTheaterResupplyDay: (updatedUnits as any).__nextResupplyDay || (s as any).nextTheaterResupplyDay || 5,
       // Track cumulative convoy stats for AAR
       convoyStats: {
         dispatched: ((s as any).convoyStats?.dispatched ?? 0),
@@ -952,7 +998,7 @@ export const useGameStore = create<Store>((set,get)=>({
   allocateSupply:(requestId,_)=>set(s=>({requestQueue:s.requestQueue.map(r=>r.id===requestId?{...r,status:'ALLOCATED'}:r)})),
   denyRequest:(requestId)=>set(s=>({requestQueue:s.requestQueue.map(r=>r.id===requestId?{...r,status:'DENIED'}:r)})),
   dispatchConvoy:(fromNodeId:string, toUnitId:string, cargo:Array<{supplyClass:number;amount:number}>, assetType:'GROUND'|'AIR'|'HELO'|'SEA')=>{
-    const s=get()
+    const s=get() as any
     const isAir = assetType==='AIR'||assetType==='HELO'
 
     // ── PERMANENT LOC INTERDICTION CHECK ──────────────────────────────────────
