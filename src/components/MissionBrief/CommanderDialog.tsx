@@ -16,55 +16,35 @@ function Portrait({ style, color }: { style: string; color: string }) {
   return <div style={{ width:72, height:72 }} dangerouslySetInnerHTML={{ __html:svg }}/>
 }
 
-function TypeWriter({ text, speed=32, onDone }: { text:string; speed?:number; onDone:()=>void }) {
-  const [shown, setShown] = useState('')
-  const [finished, setFinished] = useState(false)
-  useEffect(() => {
-    setShown(''); setFinished(false); let i=0
-    // Radio squelch open
-    AudioEngine.resume()
-    AudioEngine.playConvoyDispatch()
-    const t = setInterval(()=>{
-      i++; setShown(text.slice(0,i))
-      // Subtle blip every 3 chars for texture
-      if (i % 3 === 0) AudioEngine.playTick(false)
-      if(i>=text.length){
-        clearInterval(t)
-        setFinished(true)
-        // Radio squelch close
-        setTimeout(() => AudioEngine.playTick(false), 80)
-      }
-    }, speed)
-    return ()=>clearInterval(t)
-  }, [text])
-  return (
-    <span onClick={() => { if(finished) onDone() }}>
-      {shown}
-      {!finished && <span style={{animation:'dlg-blink .7s infinite'}}>▮</span>}
-    </span>
-  )
-}
 
 // Audio element for ElevenLabs playback
 let activeAudio: HTMLAudioElement | null = null
+let pendingAudioUrl: string | null = null
 
-async function speakLine(text: string, char: BriefingCharacter, lineIdx: number) {
-  // Stop any playing audio
+// Returns the audio duration once loaded (for TypeWriter sync)
+async function speakLine(
+  text: string,
+  char: BriefingCharacter,
+  lineIdx: number,
+  onDurationKnown?: (durationMs: number) => void
+) {
   if (activeAudio) { activeAudio.pause(); activeAudio = null }
-
-  // Duck BGM while commander speaks
-  AudioEngine.duckBGM(6000)
+  AudioEngine.duckBGM(8000)
 
   try {
     const url = await generateSpeech(char.id, text, lineIdx, char.portraitStyle)
-    if (!url) {
-      // Fallback to browser TTS if ElevenLabs fails
-      fallbackSpeak(text, char)
-      return
-    }
+    if (!url) { fallbackSpeak(text, char); return }
+
     const audio = new Audio(url)
     audio.volume = 0.92
     activeAudio = audio
+
+    // Once metadata loaded, tell TypeWriter the real duration
+    audio.onloadedmetadata = () => {
+      if (onDurationKnown && audio.duration && isFinite(audio.duration)) {
+        onDurationKnown(audio.duration * 1000)
+      }
+    }
     audio.play().catch(() => fallbackSpeak(text, char))
   } catch(e) {
     fallbackSpeak(text, char)
@@ -84,6 +64,54 @@ function fallbackSpeak(text: string, char: BriefingCharacter) {
   ) ?? voices.find(v => v.lang.startsWith('en'))
   if (match) utter.voice = match
   window.speechSynthesis.speak(utter)
+}
+
+// TypeWriter that can resync to audio duration
+function TypeWriter({ text, onDone, audioDurationMs }: {
+  text: string; onDone: ()=>void; audioDurationMs?: number
+}) {
+  const [shown, setShown] = useState('')
+  const [finished, setFinished] = useState(false)
+  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const startTyping = React.useCallback((speed: number) => {
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    setShown(''); setFinished(false)
+    let i = 0
+    AudioEngine.resume()
+    AudioEngine.playConvoyDispatch()
+    intervalRef.current = setInterval(() => {
+      i++; setShown(text.slice(0, i))
+      if (i % 3 === 0) AudioEngine.playTick(false)
+      if (i >= text.length) {
+        clearInterval(intervalRef.current!)
+        setFinished(true)
+        setTimeout(() => AudioEngine.playTick(false), 80)
+      }
+    }, speed)
+  }, [text])
+
+  // Start at default speed
+  useEffect(() => {
+    startTyping(28)
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [text])
+
+  // Resync when audio duration arrives — recalculate chars/ms to match voice
+  useEffect(() => {
+    if (!audioDurationMs || finished) return
+    const remaining = text.length - shown.length
+    if (remaining <= 0) return
+    const newSpeed = Math.max(10, Math.min(60, audioDurationMs / text.length))
+    startTyping(newSpeed)
+  }, [audioDurationMs])
+
+  return (
+    <span onClick={() => { if (finished) onDone() }}>
+      {shown}
+      {!finished && <span style={{animation:'dlg-blink .7s infinite'}}>▮</span>}
+    </span>
+  )
 }
 
 interface Props {
@@ -108,20 +136,21 @@ export default function CommanderDialog({ team, activeTab, selectedMemberId, onC
 
   const [lineIdx, setLineIdx] = useState(0)
   const [done, setDone]       = useState(false)
+  const [audioDurationMs, setAudioDurationMs] = useState<number|undefined>(undefined)
 
   // Reset on section/tab change
-  useEffect(() => { setLineIdx(0); setDone(false) }, [activeTab, selectedMemberId])
+  useEffect(() => { setLineIdx(0); setDone(false); setAudioDurationMs(undefined) }, [activeTab, selectedMemberId])
 
   const advance = useCallback(() => {
     if (!section) return
-    if (lineIdx < section.lines.length - 1) { setLineIdx(l=>l+1); setDone(false) }
+    if (lineIdx < section.lines.length - 1) { setLineIdx(l=>l+1); setDone(false); setAudioDurationMs(undefined) }
     else setDone(true)
   }, [lineIdx, section])
 
   useEffect(() => {
     if (!section || !char) return
     const line = section.lines[lineIdx]
-    if (line) speakLine(line, char, lineIdx)
+    if (line) speakLine(line, char, lineIdx, (ms) => setAudioDurationMs(ms))
   }, [lineIdx, activeTab, selectedMemberId])
 
   // Fallback: no data for this selection
@@ -196,7 +225,7 @@ export default function CommanderDialog({ team, activeTab, selectedMemberId, onC
                 borderRight:`7px solid ${c}18` }}/>
               <p style={{ fontFamily:'Barlow,sans-serif', fontSize:16, lineHeight:1.8,
                 color:'#c8e6c9', margin:0 }}>
-                <TypeWriter key={`${activeTab}-${selectedMemberId}-${lineIdx}`} text={line} onDone={advance}/>
+                <TypeWriter key={`${activeTab}-${selectedMemberId}-${lineIdx}`} text={line} onDone={advance} audioDurationMs={audioDurationMs}/>
               </p>
 
               {/* Progress dots */}

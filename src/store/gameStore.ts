@@ -1006,6 +1006,7 @@ export const useGameStore = create<Store>((set,get)=>({
   dispatchConvoy:(fromNodeId:string, toUnitId:string, cargo:Array<{supplyClass:number;amount:number}>, assetType:'GROUND'|'AIR'|'HELO'|'SEA')=>{
     const s=get() as any
     const isAir = assetType==='AIR'||assetType==='HELO'
+    const meta = getScenarioMeta(s.activeScenarioId || 'CAMPAIGN_1')
 
     // C6 Island Hop — ground convoys not available
     if (!isAir && assetType !== 'SEA' && meta.airOnlyLogistics) {
