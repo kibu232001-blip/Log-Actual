@@ -539,35 +539,73 @@ export default function TheaterMap({ onBack }: Props) {
           {GEO_NODES.map((node:TheaterNode)=>{
             const p=pos[node.id];if(!p) return null
             const isSel=selNode?.id===node.id
-            const hitSize = zoom>=9?44:zoom>=7?34:zoom>=6?28:22
+            const u=unitOf(node.unitId)
+            const col=statusColor(node)
+            const rdns=u?Math.round(u.readiness):null
+            const hitSize=zoom>=9?52:zoom>=7?40:zoom>=6?32:26
+            const labelSize=zoom>=9?13:zoom>=7?12:11
 
             return(
               <div key={node.id} onClick={()=>setSelNode(isSel?null:node)}
                 style={{position:'absolute',left:p.x,top:p.y,transform:'translate(-50%,-50%)',
-                  pointerEvents:'all',cursor:'pointer',
-                  width:hitSize,height:hitSize,
-                  // Invisible tap target — Deck.gl renders the actual sprite
-                  background:'transparent',
-                  // Show selection ring only
-                  borderRadius:4,
-                  border: isSel ? '2px solid rgba(0,255,136,0.8)' : 'none',
-                  boxShadow: isSel ? '0 0 12px rgba(0,255,136,0.5)' : 'none',
+                  pointerEvents:'all',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',
+                  userSelect:'none',WebkitUserSelect:'none',
                 }}>
-                {/* Readiness bar — shown below tap target when selected or zoomed in */}
-                {isSel && (() => {
-                  const u = unitOf(node.unitId)
-                  const rdns = u ? Math.round(u.readiness) : null
-                  const col = statusColor(node)
-                  return rdns !== null ? (
-                    <div style={{position:'absolute',top:'calc(100% + 6px)',left:'50%',transform:'translateX(-50%)',display:'flex',flexDirection:'column',alignItems:'center',gap:2,minWidth:50}}>
-                      <div style={{width:50,height:4,background:'rgba(255,255,255,.1)',borderRadius:2,overflow:'hidden'}}>
-                        <div style={{width:`${rdns}%`,height:'100%',background:col,boxShadow:`0 0 4px ${col}`}}/>
-                      </div>
-                      <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:11,color:col,whiteSpace:'nowrap'}}>{rdns}%</div>
-                      <div style={{fontFamily:'Barlow Condensed,sans-serif',fontSize:11,color:col,whiteSpace:'nowrap',fontWeight:700}}>{node.name}</div>
+
+                {/* Selection highlight ring — pulsing glow behind sprite */}
+                {isSel && (
+                  <div style={{
+                    position:'absolute',
+                    width:hitSize+16, height:hitSize+16,
+                    borderRadius:6,
+                    border:`2px solid ${col}`,
+                    boxShadow:`0 0 18px ${col}80, inset 0 0 8px ${col}30`,
+                    animation:'sw-pulse 1s ease-in-out infinite',
+                    pointerEvents:'none',
+                    zIndex:2,
+                  }}/>
+                )}
+
+                {/* Invisible hit area */}
+                <div style={{width:hitSize,height:hitSize,position:'relative',zIndex:3}}/>
+
+                {/* Base name — always visible, brightness reflects status */}
+                <div style={{
+                  position:'absolute',
+                  top:`calc(100% + ${hitSize/2 + 4}px)`,
+                  left:'50%',
+                  transform:'translateX(-50%)',
+                  whiteSpace:'nowrap',
+                  fontFamily:'Barlow Condensed,sans-serif',
+                  fontWeight:700,
+                  fontSize:labelSize,
+                  letterSpacing:.8,
+                  color: isSel ? '#ffffff' : col,
+                  textShadow:`0 0 8px ${col}80, 0 1px 3px rgba(0,0,0,.95)`,
+                  pointerEvents:'none',
+                  zIndex:4,
+                  padding:'1px 4px',
+                  background: isSel ? `${col}25` : 'rgba(0,0,0,0.5)',
+                  borderRadius:2,
+                  border: isSel ? `1px solid ${col}60` : 'none',
+                }}>{node.short || node.name}</div>
+
+                {/* Readiness bar — always shown when zoomed in, or when selected */}
+                {(isSel || zoom >= 7) && rdns !== null && (
+                  <div style={{
+                    position:'absolute',
+                    top:`calc(100% + ${hitSize/2 + labelSize + 10}px)`,
+                    left:'50%',
+                    transform:'translateX(-50%)',
+                    display:'flex',flexDirection:'column',alignItems:'center',gap:2,
+                    pointerEvents:'none',zIndex:4,
+                  }}>
+                    <div style={{width:44,height:3,background:'rgba(255,255,255,.08)',borderRadius:2,overflow:'hidden'}}>
+                      <div style={{width:`${rdns}%`,height:'100%',background:col,boxShadow:`0 0 4px ${col}`,transition:'width 1s ease'}}/>
                     </div>
-                  ) : null
-                })()}
+                    <div style={{fontFamily:'Share Tech Mono,monospace',fontSize:10,color:col,whiteSpace:'nowrap'}}>{rdns}%</div>
+                  </div>
+                )}
               </div>
             )
           })}

@@ -577,7 +577,7 @@ export default function NodeDetailPanel({ node, onClose }: Props) {
               onDispatch={(cargo, assetType, sourceUnitId, routeId)=>{
                 const dispatchConvoy = useGameStore.getState().dispatchConvoy
                 if(dispatchConvoy) {
-                  dispatchConvoy(sourceUnitId || 'DEP_BYD', node.unitId||node.id, cargo, assetType)
+                  dispatchConvoy(sourceUnitId || 'DEP_BYD', node.unitId||node.id, cargo, assetType, routeId)
                 }
                 const cls = ['CL I','CL II','CL III','CL IV','CL V','CL VIII','CL IX']
                 const desc = cargo.map((c:any)=>`${cls[c.supplyClass]}:${c.amount}%`).join(' ')

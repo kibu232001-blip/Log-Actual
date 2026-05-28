@@ -1016,7 +1016,7 @@ export const useGameStore = create<Store>((set,get)=>({
 
   allocateSupply:(requestId,_)=>set(s=>({requestQueue:s.requestQueue.map(r=>r.id===requestId?{...r,status:'ALLOCATED'}:r)})),
   denyRequest:(requestId)=>set(s=>({requestQueue:s.requestQueue.map(r=>r.id===requestId?{...r,status:'DENIED'}:r)})),
-  dispatchConvoy:(fromNodeId:string, toUnitId:string, cargo:Array<{supplyClass:number;amount:number}>, assetType:'GROUND'|'AIR'|'HELO'|'SEA')=>{
+  dispatchConvoy:(fromNodeId:string, toUnitId:string, cargo:Array<{supplyClass:number;amount:number}>, assetType:'GROUND'|'AIR'|'HELO'|'SEA', routeId?:string)=>{
     const s=get() as any
     const isAir = assetType==='AIR'||assetType==='HELO'
     const meta = getScenarioMeta(s.activeScenarioId || 'CAMPAIGN_1')
@@ -1082,7 +1082,7 @@ export const useGameStore = create<Store>((set,get)=>({
     if (routePenalty) modifiers.push(`Route contested (+1d)`)
     const modStr = modifiers.length ? ` | ${modifiers.join(' | ')}` : ''
 
-    const locId = `direct_${fromNodeId}_${toUnitId}`
+    const locId = routeId || `direct_${fromNodeId}_${toUnitId}`
     const newConvoy = {
       id:`CMD_CONVOY_${Date.now()}`,
       fromNodeId, toUnitId, locId,

@@ -261,7 +261,14 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
         const completedDays = currentDay-(c.departedDay||currentDay)
         const progress = Math.min(1,Math.max(0,(completedDays+dayFraction)/Math.max(1,c.travelDays)))
         const isAir = c.assetType==='AIR'||c.assetType==='HELO'
+        // Look up route: try locId first, then fallback direct key, then find by from/to
         const geo = routes[c.locId]
+          || routes[`direct_${c.fromNodeId}_${c.toUnitId}`]
+          || Object.values(routes).find((r:any) =>
+              (r.fromActual && nodeMap[c.fromNodeId] &&
+               Math.abs(r.fromActual[0]-nodeMap[c.fromNodeId].lng)<0.01) ||
+              r.locId === c.locId
+            )
         let pos:[number,number], angle=0
 
         if (isAir||!geo?.coordinates?.length) {
