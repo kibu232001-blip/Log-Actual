@@ -16,7 +16,7 @@ export interface RouteGeometry {
   toActual: [number, number]
 }
 
-const CACHE_KEY = 'logactual_route_cache_v2'
+const CACHE_KEY = 'logactual_route_cache_v3'
 const OSRM_BASE = 'https://router.project-osrm.org/route/v1/driving'
 
 // In-memory cache
