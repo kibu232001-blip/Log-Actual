@@ -253,6 +253,12 @@ export default function TopBar() {
           color:'#2a8a5a', padding:'3px 10px', borderRadius:3, cursor:'pointer',
           fontFamily:'Share Tech Mono,monospace', fontSize:13, letterSpacing:2,
         }}>SKIP →</button>
+        <button onClick={() => { AudioEngine.toggleBGM(); setBgmOn((p:boolean)=>!p) }} style={{
+          background:'transparent', border:'none',
+          color: bgmOn ? '#2a8a5a' : '#1a3a20',
+          padding:'3px 6px', cursor:'pointer', fontSize:16,
+          WebkitTapHighlightColor:'transparent',
+        }} title={bgmOn?'BGM ON':'BGM OFF'}>{bgmOn ? '🔊' : '🔇'}</button>
       </div>
 
       <div style={{ display:'flex', alignItems:'center', gap:14 }}>

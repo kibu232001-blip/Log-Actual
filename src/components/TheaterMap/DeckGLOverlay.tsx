@@ -272,7 +272,8 @@ export default function DeckGLOverlay({ mapInstance, zoom }: Props) {
         let pos:[number,number], angle=0
 
         if (isAir||!geo?.coordinates?.length) {
-          const f=nodeMap[c.fromNodeId], t=findDest(c.toUnitId)
+          const f = nodeMap[c.fromNodeId] || findDest(c.fromNodeId)
+          const t = findDest(c.toUnitId)
           if (!f||!t) return null
           const r = interpArc(f.lng,f.lat,t.lng,t.lat,progress)
           pos=r.pos; angle=r.angle
